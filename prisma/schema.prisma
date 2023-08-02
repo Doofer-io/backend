@@ -1,11 +1,60 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
 generator client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+enum UserType {
+  organization
+  individual
+}
+
+model User {
+  id           Int            @id @default(autoincrement())
+  email        String         @unique
+  createdDate  DateTime       @default(now())
+  avatar       String?
+  EmailAccount EmailAccount[]
+  OAuthAccount OAuthAccount[]
+  Organization Organization?
+  Individual   Individual?
+}
+
+model EmailAccount {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  password  String
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model OAuthAccount {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  provider       String
+  providerUserId String
+  accessToken    String
+  createdAt      DateTime @default(now())
+  User           User     @relation(fields: [userId], references: [id])
+}
+
+model Organization {
+  id          Int    @id @default(autoincrement())
+  userId      Int    @unique
+  companyName String
+  notes       String
+  User        User   @relation(fields: [userId], references: [id])
+}
+
+model Individual {
+  id        Int    @id @default(autoincrement())
+  userId    Int    @unique
+  firstName String
+  lastName  String
+  position  String
+  role      String
+  User      User   @relation(fields: [userId], references: [id])
 }
