@@ -3,9 +3,8 @@ import * as path from 'path';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule } from '@nestjs/swagger';
-import { Logger } from '@nestjs/common';
-import { ValidationPipe } from '@nestjs/common';
-import { createDocument } from './swagger/swagger';
+import { Logger, ValidationPipe } from '@nestjs/common';
+import { createDocument } from './shared/swagger/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {

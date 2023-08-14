@@ -1,11 +1,55 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  userUuid     String        @id @default(uuid()) @map("user_uuid")
+  email        String        @unique
+  avatar       String?
+  firstName    String
+  lastName     String
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  basicAccount BasicAccount?
+  oauthAccount OauthAccount?
+  individual   Individual?
+  company      Company?
+}
+
+model BasicAccount {
+  basicAccountUuid String @id @default(uuid()) @map("basic_account_uuid")
+  userUuid         String @unique @map("user_uuid")
+  password         String
+  user             User   @relation(fields: [userUuid], references: [userUuid])
+}
+
+model OauthAccount {
+  oauthAccountUuid String         @id @default(uuid()) @map("oauth_account_uuid")
+  userUuid         String         @unique @map("user_uuid")
+  provider         OAUTH_PROVIDER
+  acc              String         @unique @map("access_token")
+  user             User           @relation(fields: [userUuid], references: [userUuid])
+}
+
+enum OAUTH_PROVIDER {
+  GOOGLE
+  MICROSOFT
+}
+
+model Individual {
+  individualUuid String @id @default(uuid()) @map("individual_uuid")
+  userUuid       String @unique @map("user_uuid")
+  user           User   @relation(fields: [userUuid], references: [userUuid])
+}
+
+model Company {
+  companyUuid String @id @default(uuid()) @map("company_uuid")
+  userUuid    String @unique @map("user_uuid")
+  companyName String
+  user        User   @relation(fields: [userUuid], references: [userUuid])
 }
