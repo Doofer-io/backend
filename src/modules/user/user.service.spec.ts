@@ -1,73 +1,83 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserService } from './user.service';
-import { PrismaService } from '../shared/services/prisma.service';
-import { InternalServerErrorException } from '@nestjs/common';
+import { PrismaService } from '../../shared/services/prisma.service';
+import {
+  InternalServerErrorException,
+  ConflictException,
+} from '@nestjs/common';
+import { USER_CREATION_ERROR } from './constants/constant';
 
 describe('UserService', () => {
-  let service: UserService;
-  let prisma: PrismaService;
-
-  const dto: {
-    email: string;
-    avatar: string;
-  } = {
-    email: 'test@test.com',
-    avatar: 'avatar.png',
-  };
+  let userService: UserService;
+  let prismaServiceMock: Partial<PrismaService>;
 
   beforeEach(async () => {
-    const PrismaServiceProvider = {
-      provide: PrismaService,
-      useValue: {
-        user: {
-          create: jest.fn(),
-        },
-      },
+    prismaServiceMock = {
+      user: {
+        create: jest.fn() as jest.Mock,
+        findUnique: jest.fn() as jest.Mock,
+      } as any,
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [UserService, PrismaServiceProvider],
+      providers: [
+        UserService,
+        { provide: PrismaService, useValue: prismaServiceMock },
+      ],
     }).compile();
 
-    service = module.get<UserService>(UserService);
-    prisma = module.get<PrismaService>(PrismaService);
+    userService = module.get<UserService>(UserService);
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
+  it('should be defined', () => {
+    expect(userService).toBeDefined();
   });
 
-  it('UserService should be defined', () => {
-    expect(service).toBeDefined();
-  });
+  describe('createUser', () => {
+    const userData = {
+      email: 'test@example.com',
+      firstName: 'Test',
+      lastName: 'User',
+    };
 
-  it('UserService.createUser() should successfully create a user', async () => {
-    (prisma.user.create as jest.Mock).mockResolvedValue(dto);
+    it('should create a user successfully', async () => {
+      const createdUser = {
+        userUuid: 'someUuid',
+        ...userData,
+      };
 
-    const result = await service.createUser(dto.email, dto.avatar);
-    expect(result).toEqual(dto);
-    expect(prisma.user.create).toHaveBeenCalledWith({
-      data: {
-        email: dto.email,
-        avatar: dto.avatar,
-      },
+      (prismaServiceMock.user.findUnique as jest.Mock).mockResolvedValueOnce(
+        null,
+      );
+      (prismaServiceMock.user.create as jest.Mock).mockResolvedValueOnce(
+        createdUser,
+      );
+
+      const result = await userService.createUser(userData);
+      expect(result).toEqual(createdUser);
     });
-  });
 
-  it('UserService.createUser() should throw an error when creating a user fails', async () => {
-    (prisma.user.create as jest.Mock).mockRejectedValue(
-      new InternalServerErrorException(),
-    );
+    it('should throw a ConflictException when user with email already exists', async () => {
+      (prismaServiceMock.user.findUnique as jest.Mock).mockResolvedValueOnce(
+        userData,
+      );
 
-    await expect(service.createUser(dto.email, dto.avatar)).rejects.toThrow(
-      InternalServerErrorException,
-    );
+      await expect(userService.createUser(userData)).rejects.toThrow(
+        new ConflictException('User already exists'),
+      );
+    });
 
-    expect(prisma.user.create).toHaveBeenCalledWith({
-      data: {
-        email: dto.email,
-        avatar: dto.avatar,
-      },
+    it('should throw an error when user creation fails', async () => {
+      (prismaServiceMock.user.findUnique as jest.Mock).mockResolvedValueOnce(
+        null,
+      );
+      (prismaServiceMock.user.create as jest.Mock).mockRejectedValueOnce(
+        new Error('Error while creating user'),
+      );
+
+      await expect(userService.createUser(userData)).rejects.toThrow(
+        new InternalServerErrorException(USER_CREATION_ERROR),
+      );
     });
   });
 });

@@ -1,7 +1,7 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RegisterDTO } from './dto/registration.dto';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { RegistrationRequest, RegistrationType } from './dto/registration.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -10,12 +10,12 @@ export class AuthController {
 
   @Post('registration')
   @ApiOperation({ summary: 'Registration new user' })
-  @ApiBody({ type: RegisterDTO })
+  @ApiBody({ type: RegistrationRequest })
   @ApiResponse({
     status: 200,
     description: 'User was creaeted and data was recieved to client',
   })
-  async registration(@Body() body: RegisterDTO) {
+  async registration(@Body() body: RegistrationType) {
     return this.authService.registration(body);
   }
 }

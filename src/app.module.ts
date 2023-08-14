@@ -6,12 +6,12 @@ import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
-    UserModule,
-    AuthModule,
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema,
     }),
+    UserModule,
+    AuthModule,
   ],
   controllers: [],
   providers: [],
