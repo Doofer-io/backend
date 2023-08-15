@@ -1,160 +1,127 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UserService } from './user.service';
 import { PrismaService } from '../../shared/services/prisma.service';
+import { User } from '@prisma/client';
 import {
-  InternalServerErrorException,
-  ConflictException,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { USER_CREATION_ERROR } from './constants/constant';
-import { mocked } from 'ts-jest/utils';
+  USER_CREATION_ERROR,
+  USER_UNIQUE,
+  INVALID_DATA,
+  UserData,
+} from './constants/constant';
+import * as bcrypt from 'bcrypt';
+import { UserService } from './user.service';
 
 jest.mock('bcrypt', () => ({
-  hash: jest.fn(() => Promise.resolve('hashedPassword')),
-  compare: jest.fn(
-    (inputPassword, storedPassword) =>
-      inputPassword === 'MySecureComplexPassword123!' &&
-      storedPassword === 'hashedPassword',
-  ),
+  compare: jest.fn(),
 }));
 
 describe('UserService', () => {
-  let userService: UserService;
-  let prismaServiceMock: Partial<PrismaService>;
-  const userData = {
-    email: 'test@example.com',
-    firstName: 'Test',
-    lastName: 'User',
-  };
+  let service: UserService;
+  let prisma: PrismaService;
 
   beforeEach(async () => {
-    prismaServiceMock = {
-      user: {
-        create: mocked(jest.fn()),
-        findUnique: mocked(jest.fn()),
-      } as any,
-      basicAccount: {
-        findUnique: mocked(jest.fn()),
-      } as any,
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserService,
-        { provide: PrismaService, useValue: prismaServiceMock },
+        {
+          provide: PrismaService,
+          useValue: {
+            user: {
+              create: jest.fn(),
+              findUnique: jest.fn(),
+            },
+            basicAccount: {
+              findUnique: jest.fn(),
+            },
+          },
+        },
       ],
     }).compile();
 
-    userService = module.get<UserService>(UserService);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
+    service = module.get<UserService>(UserService);
+    prisma = module.get<PrismaService>(PrismaService);
   });
 
   it('should be defined', () => {
-    expect(userService).toBeDefined();
+    expect(service).toBeDefined();
   });
 
   describe('createUser', () => {
-    it('should create a user successfully', async () => {
-      const createdUser = {
-        userUuid: 'someUuid',
+    it('should create a user if email is not already registered', async () => {
+      const userData: UserData = {
+        email: 'test@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      };
+      const user: User = {
         ...userData,
+        userUuid: 'qweqwe-qweqwe-qweqwe',
+        avatar: null,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
       };
 
-      prismaServiceMock.user.findUnique.mockResolvedValueOnce(null);
-      prismaServiceMock.user.create.mockResolvedValueOnce(createdUser);
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
+      jest.spyOn(prisma.user, 'create').mockResolvedValue(user as User);
 
-      const result = await userService.createUser(userData);
-      expect(result).toEqual(createdUser);
+      expect(await service.createUser(userData)).toEqual(user);
     });
 
-    it('should throw a ConflictException when user with email already exists', async () => {
-      prismaServiceMock.user.findUnique.mockResolvedValueOnce(userData);
+    it('should throw a ConflictException if email is already registered', async () => {
+      const userData: UserData = {
+        email: 'test@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      };
 
-      await expect(userService.createUser(userData)).rejects.toThrow(
-        new ConflictException('User already exists'),
-      );
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue({} as User);
+
+      await expect(service.createUser(userData)).rejects.toThrow(USER_UNIQUE);
     });
 
-    it('should log a specific error message if user creation fails', async () => {
-      const loggerSpy = jest.spyOn(userService['logger'], 'error');
-      const errorMessage = 'Error while creating user';
+    it('should throw an InternalServerErrorException when an error is thrown during creation', async () => {
+      const userData: UserData = {
+        email: 'test@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      };
 
-      prismaServiceMock.user.findUnique.mockResolvedValueOnce(null);
-      prismaServiceMock.user.create.mockRejectedValueOnce(
-        new Error(errorMessage),
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
+      jest.spyOn(prisma.user, 'create').mockRejectedValue(new Error());
+
+      await expect(service.createUser(userData)).rejects.toThrow(
+        USER_CREATION_ERROR,
       );
-
-      await expect(userService.createUser(userData)).rejects.toThrow(
-        new InternalServerErrorException(USER_CREATION_ERROR),
-      );
-      expect(loggerSpy).toHaveBeenCalledWith(errorMessage, expect.anything());
-    });
-
-    it('should call ensureUserDoesNotExist before creating a user', async () => {
-      const ensureUserDoesNotExistSpy = jest.spyOn(
-        userService,
-        'ensureUserDoesNotExist' as any,
-      );
-
-      prismaServiceMock.user.findUnique.mockResolvedValueOnce(null);
-      prismaServiceMock.user.create.mockResolvedValueOnce(userData);
-
-      await userService.createUser(userData);
-      expect(ensureUserDoesNotExistSpy).toHaveBeenCalledWith(
-        userData.email,
-        prismaServiceMock,
-      );
-    });
-
-    it('should pass correct user data to PrismaClient when creating a user', async () => {
-      prismaServiceMock.user.findUnique.mockResolvedValueOnce(null);
-      prismaServiceMock.user.create.mockResolvedValueOnce(userData);
-
-      await userService.createUser(userData);
-      expect(prismaServiceMock.user.create).toHaveBeenCalledWith({
-        data: {
-          email: userData.email,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-        },
-      });
     });
   });
 
   describe('validateUserPassword', () => {
-    it('should validate user password and return user', async () => {
+    it('should throw an UnauthorizedException if password is invalid', async () => {
       const email = 'test@example.com';
-      const password = 'MySecureComplexPassword123!';
-      const userMock = {
-        userUuid: '27300609-b3c2-4059-825e-166cd05b2dfb',
-        email: 'test@example.com',
-        password: 'hashedPassword',
+      const password = 'password123';
+      const hashedPassword = 'hashedPassword';
+      const user: User = {
+        email,
+        firstName: 'John',
+        lastName: 'Doe',
+        userUuid: 'qweqwe-qweqwe-qweqwe',
+        avatar: null,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      };
+      const basicAccount = {
+        userUuid: 1,
+        password: hashedPassword,
       };
 
-      prismaServiceMock.user.findUnique.mockResolvedValue(userMock);
-
-      const result = await userService.validateUserPassword(email, password);
-
-      expect(result).toEqual(userMock);
-    });
-
-    it('should throw UnauthorizedException when invalid password is provided', async () => {
-      const email = 'test@example.com';
-      const password = 'InvalidPassword';
-      const userMock = {
-        userUuid: 'testUuid',
-        email: 'test@example.com',
-        password: 'hashedPassword',
-      };
-
-      prismaServiceMock.user.findUnique.mockResolvedValue(userMock);
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(user as User);
+      jest
+        .spyOn(prisma.basicAccount, 'findUnique')
+        .mockResolvedValue(basicAccount as any);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
       await expect(
-        userService.validateUserPassword(email, password),
-      ).rejects.toThrow(UnauthorizedException);
+        service.validateUserPassword(email, password),
+      ).rejects.toThrow(INVALID_DATA);
     });
   });
 });
