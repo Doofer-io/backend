@@ -80,7 +80,6 @@ describe('AuthService', () => {
   });
 
   it('should register a user and execute transaction', async () => {
-    const hashedPassword = await bcrypt.hash('MySecureComplexPassword123!', 10);
     const userMock = {
       userUuid: 'testUuid',
       email: 'test@example.com',
