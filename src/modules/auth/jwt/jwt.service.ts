@@ -1,8 +1,9 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { JWT_ERROR } from '../constants/constant';
 
-interface JWTPayload {
+export interface JWTPayload {
   email: string;
   userUuid: string;
 }
@@ -16,11 +17,17 @@ export class JwtAuthService {
 
   createAccessToken(user: JWTPayload): { accessToken: string } {
     const { email, userUuid } = user;
+    const accessToken = this.jwtService.sign({
+      email,
+      userUuid,
+    });
+
+    if (!accessToken) {
+      throw new InternalServerErrorException(JWT_ERROR);
+    }
+
     return {
-      accessToken: this.jwtService.sign({
-        email,
-        userUuid,
-      }),
+      accessToken,
     };
   }
 

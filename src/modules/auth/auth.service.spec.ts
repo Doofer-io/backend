@@ -1,114 +1,230 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { UserService } from '../user/user.service';
-import { PrismaService } from '../../shared/services/prisma.service';
 import { JwtAuthService } from './jwt/jwt.service';
-import { IndividualRegistrationDto } from './dto/registration.dto';
+import { PrismaService } from '../../shared/services/prisma.service';
+import { InternalServerErrorException } from '@nestjs/common';
+import {
+  RegistrationType,
+  CompanyRegistrationDto,
+} from './dto/registration.dto';
+import * as bcrypt from 'bcrypt';
 
 describe('AuthService', () => {
   let authService: AuthService;
-
-  // Моки
-  const userServiceMock: Partial<UserService> = {};
-  const mockBasicAccount = jest.fn(
-    () =>
-      ({
-        create: jest.fn().mockResolvedValue({}),
-        findUnique: jest.fn(),
-        findUniqueOrThrow: jest.fn(),
-        findFirst: jest.fn(),
-        findFirstOrThrow: jest.fn(),
-        findMany: jest.fn(),
-        createMany: jest.fn(),
-        delete: jest.fn(),
-        update: jest.fn(),
-        deleteMany: jest.fn(),
-        updateMany: jest.fn(),
-        upsert: jest.fn(),
-        count: jest.fn(),
-        aggregate: jest.fn(),
-        groupBy: jest.fn(),
-        fields: jest.fn(),
-      } as any),
-  );
-
-  const prismaServiceMock: Partial<PrismaService> = {
-    basicAccount: mockBasicAccount(),
-  };
-
-  const jwtAuthServiceMock: Partial<JwtAuthService> = {};
+  let userServiceMock: any;
+  let jwtAuthServiceMock: any;
+  let prismaServiceMock: any;
+  let prismaClientMock: any;
+  let registrationDto: RegistrationType;
 
   beforeEach(async () => {
+    userServiceMock = {
+      createUser: jest.fn(),
+      validateUserPassword: jest.fn(),
+    };
+
+    jwtAuthServiceMock = {
+      createAccessToken: jest.fn(),
+    };
+
+    prismaClientMock = {
+      basicAccount: {
+        create: jest.fn(),
+        findUnique: jest.fn(),
+      },
+      company: {
+        create: jest.fn(),
+      },
+      individual: {
+        create: jest.fn(),
+      },
+    };
+
+    prismaServiceMock = {
+      $transaction: jest
+        .fn()
+        .mockImplementation(async cb => cb(prismaClientMock)),
+      individual: {
+        findUnique: jest.fn(),
+      },
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
-        { provide: UserService, useValue: userServiceMock },
-        { provide: PrismaService, useValue: prismaServiceMock },
-        { provide: JwtAuthService, useValue: jwtAuthServiceMock },
+        {
+          provide: UserService,
+          useValue: userServiceMock,
+        },
+        {
+          provide: JwtAuthService,
+          useValue: jwtAuthServiceMock,
+        },
+        {
+          provide: PrismaService,
+          useValue: prismaServiceMock,
+        },
       ],
     }).compile();
 
     authService = module.get<AuthService>(AuthService);
 
-    // Инициализация наших моков из реальных сервисов (по желанию, можно убрать)
-    Object.assign(userServiceMock, module.get<UserService>(UserService));
-    Object.assign(prismaServiceMock, module.get<PrismaService>(PrismaService));
-    Object.assign(
-      jwtAuthServiceMock,
-      module.get<JwtAuthService>(JwtAuthService),
+    registrationDto = {
+      firstName: 'test',
+      lastName: 'test',
+      email: 'test@example.com',
+      password: 'MySecureComplexPassword123!',
+      companyName: 'Test Company',
+    };
+  });
+
+  it('should register a user and execute transaction', async () => {
+    const hashedPassword = await bcrypt.hash('MySecureComplexPassword123!', 10);
+    const userMock = {
+      userUuid: 'testUuid',
+      email: 'test@example.com',
+    };
+    const tokenMock = {
+      accessToken: 'testToken',
+    };
+
+    userServiceMock.createUser.mockResolvedValue(userMock);
+    jwtAuthServiceMock.createAccessToken.mockReturnValue(tokenMock);
+
+    const result = await authService.registration(
+      registrationDto as CompanyRegistrationDto,
+    );
+
+    expect(result).toHaveProperty('user');
+    expect(result).toHaveProperty('accessToken');
+    expect(userServiceMock.createUser).toHaveBeenCalled();
+    expect(jwtAuthServiceMock.createAccessToken).toHaveBeenCalled();
+    expect(prismaServiceMock.$transaction).toHaveBeenCalled();
+  });
+
+  it('should throw InternalServerErrorException when there is an error during registration', async () => {
+    userServiceMock.createUser.mockRejectedValueOnce(new Error());
+
+    await expect(authService.registration(registrationDto)).rejects.toThrow(
+      InternalServerErrorException,
     );
   });
 
-  it('should be defined', () => {
-    expect(authService).toBeDefined();
+  it('should hash the password', async () => {
+    const password = 'MySecureComplexPassword123!';
+    const hashedPassword = await authService['hashPassword'](password);
+
+    expect(hashedPassword).not.toEqual(password);
+    expect(await bcrypt.compare(password, hashedPassword)).toBeTruthy();
   });
 
-  const date = new Date();
-  describe('registration', () => {
-    const registrationDto: IndividualRegistrationDto = {
-      email: `test@example.com-${date}`,
-      password: 'TestPassword123!',
-      firstName: 'Test',
-      lastName: 'User',
+  it('should throw InternalServerErrorException when there is an error during entity creation', async () => {
+    const userMock = {
+      userUuid: 'testUuid',
+      email: 'test@example.com',
     };
 
-    beforeEach(() => {
-      userServiceMock.createUser = jest.fn().mockResolvedValueOnce({
-        userUuid: 'testUuid',
-        email: 'test@example.com',
-      });
-      jwtAuthServiceMock.createAccessToken = jest
-        .fn()
-        .mockReturnValueOnce('testToken');
-      prismaServiceMock.$transaction = jest.fn();
-    });
+    userServiceMock.createUser.mockResolvedValue(userMock);
+    prismaClientMock.basicAccount.create.mockRejectedValueOnce(new Error());
 
-    // it('should register a company user and execute transaction', async () => {
-    //   const result = await authService.registration(registrationDto);
+    await expect(
+      authService.registration(registrationDto as CompanyRegistrationDto),
+    ).rejects.toThrow(InternalServerErrorException);
+  });
 
-    //   expect(result).toHaveProperty('user');
-    //   expect(result).toHaveProperty('accessToken');
-    //   expect(userServiceMock.createUser).toHaveBeenCalled();
-    //   expect(jwtAuthServiceMock.createAccessToken).toHaveBeenCalled();
-    //   expect(prismaServiceMock.$transaction).toHaveBeenCalled();
-    // });
+  it('should create an individual entity during registration', async () => {
+    const individualRegistrationDto = {
+      ...registrationDto,
+      companyName: undefined,
+    };
 
-    it('should throw an error if user already exists', async () => {
-      userServiceMock.createUser = jest
-        .fn()
-        .mockRejectedValueOnce(new Error('User already exists'));
-      await expect(authService.registration(registrationDto)).rejects.toThrow(
-        'Error while registration',
-      );
-    });
+    const userMock = {
+      userUuid: 'testUuid',
+      email: 'test@example.com',
+    };
+    userServiceMock.createUser.mockResolvedValue(userMock);
 
-    it('should throw an error if JWT token cannot be created', async () => {
-      jwtAuthServiceMock.createAccessToken = jest
-        .fn()
-        .mockReturnValueOnce(null);
-      await expect(authService.registration(registrationDto)).rejects.toThrow(
-        'Error while registration',
-      );
-    });
+    await authService.registration(individualRegistrationDto);
+
+    expect(prismaClientMock.basicAccount.create).toHaveBeenCalled();
+    expect(prismaClientMock.individual.create).toHaveBeenCalled();
+  });
+
+  it('should create a company entity during registration', async () => {
+    const userMock = {
+      userUuid: 'testUuid',
+      email: 'test@example.com',
+    };
+    userServiceMock.createUser.mockResolvedValue(userMock);
+
+    await authService.registration(registrationDto as CompanyRegistrationDto);
+
+    expect(prismaClientMock.basicAccount.create).toHaveBeenCalled();
+    expect(prismaClientMock.company.create).toHaveBeenCalled();
+  });
+
+  it('should login a user successfully', async () => {
+    const email = 'test@example.com';
+    const password = 'MySecureComplexPassword123!';
+    const userMock = {
+      userUuid: 'testUuid',
+      email: 'test@example.com',
+    };
+    const tokenMock = {
+      accessToken: 'testToken',
+    };
+
+    userServiceMock.validateUserPassword = jest
+      .fn()
+      .mockResolvedValue(userMock);
+    jwtAuthServiceMock.createAccessToken.mockReturnValue(tokenMock);
+
+    const result = await authService.login(email, password);
+
+    expect(result).toHaveProperty('user');
+    expect(result).toHaveProperty('accessToken');
+    expect(userServiceMock.validateUserPassword).toHaveBeenCalledWith(
+      email,
+      password,
+    );
+    expect(jwtAuthServiceMock.createAccessToken).toHaveBeenCalledWith(userMock);
+  });
+
+  it('should determine whether the user is an individual or a company', async () => {
+    const userMock = {
+      userUuid: 'testUuid',
+      email: 'test@example.com',
+    };
+
+    userServiceMock.validateUserPassword.mockResolvedValue(userMock);
+    prismaServiceMock.individual.findUnique.mockResolvedValue(null);
+
+    const result = await authService.login(
+      'test@example.com',
+      'MySecureComplexPassword123!',
+    );
+
+    expect(result.isIndividual).toBeFalsy();
+  });
+
+  it('should return true from isIndividual if user is an individual', async () => {
+    const userUuid = 'testUuid';
+
+    prismaServiceMock.individual.findUnique.mockResolvedValue({ userUuid });
+
+    const isIndividual = await authService['isIndividual'](userUuid);
+
+    expect(isIndividual).toBeTruthy();
+  });
+
+  it('should return false from isIndividual if user is not an individual', async () => {
+    const userUuid = 'testUuid';
+
+    prismaServiceMock.individual.findUnique.mockResolvedValue(null);
+
+    const isIndividual = await authService['isIndividual'](userUuid);
+
+    expect(isIndividual).toBeFalsy();
   });
 });

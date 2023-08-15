@@ -3,13 +3,17 @@ import {
   Logger,
   InternalServerErrorException,
   ConflictException,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { PrismaService } from '../../shared/services/prisma.service';
+import { PrismaClient, User } from '@prisma/client';
 import {
   USER_CREATION_ERROR,
   USER_UNIQUE,
+  INVALID_DATA,
   UserData,
 } from './constants/constant';
+import { PrismaService } from '../../shared/services/prisma.service';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UserService {
@@ -17,13 +21,16 @@ export class UserService {
 
   constructor(private prisma: PrismaService) {}
 
-  async createUser(userData: UserData) {
-    await this.ensureUserDoesNotExist(userData.email);
-    return this.createUserInDatabase(userData);
+  async createUser(
+    userData: UserData,
+    prisma: PrismaClient = this.prisma,
+  ): Promise<User> {
+    await this.ensureUserDoesNotExist(userData.email, prisma);
+    return this.createUserInDatabase(userData, prisma);
   }
 
-  private async ensureUserDoesNotExist(email: string) {
-    const existingUser = await this.prisma.user.findUnique({
+  private async ensureUserDoesNotExist(email: string, prisma: PrismaClient) {
+    const existingUser = await prisma.user.findUnique({
       where: { email: email },
     });
 
@@ -32,9 +39,12 @@ export class UserService {
     }
   }
 
-  private async createUserInDatabase(userData: UserData) {
+  private async createUserInDatabase(
+    userData: UserData,
+    prisma: PrismaClient,
+  ): Promise<User> {
     try {
-      return this.prisma.user.create({
+      return await prisma.user.create({
         data: {
           email: userData.email,
           firstName: userData.firstName,
@@ -45,5 +55,36 @@ export class UserService {
       this.logger.error(USER_CREATION_ERROR, error.stack);
       throw new InternalServerErrorException(USER_CREATION_ERROR);
     }
+  }
+
+  async validateUserPassword(
+    email: string,
+    password: string,
+  ): Promise<User | null> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      throw new UnauthorizedException(INVALID_DATA);
+    }
+
+    const basicAccount = await this.prisma.basicAccount.findUnique({
+      where: { userUuid: user.userUuid },
+    });
+
+    if (
+      basicAccount &&
+      (await this.isPasswordValid(password, basicAccount.password))
+    ) {
+      return user;
+    }
+
+    throw new UnauthorizedException(INVALID_DATA);
+  }
+
+  private async isPasswordValid(
+    password: string,
+    hashedPassword: string,
+  ): Promise<boolean> {
+    return bcrypt.compare(password, hashedPassword);
   }
 }
