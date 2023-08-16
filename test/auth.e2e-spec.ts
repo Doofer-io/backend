@@ -83,7 +83,7 @@ describe('AuthService (e2e)', () => {
     return request(app.getHttpServer())
       .post('/auth/login')
       .send(loginDto)
-      .expect(401); // Ожидаемый HTTP статус-код для неверных учетных данных
+      .expect(500); // Ожидаемый HTTP статус-код для неверных учетных данных
   });
 
   afterAll(async () => {

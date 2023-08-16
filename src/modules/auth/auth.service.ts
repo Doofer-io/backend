@@ -25,10 +25,10 @@ export class AuthService {
   ) {}
 
   async registration(dto: RegistrationType) {
-    const hashedPassword = await this.hashPassword(dto.password);
-    const isCompany = COMPANY_NAME in dto;
-
     try {
+      const hashedPassword = await this.hashPassword(dto.password);
+      const isCompany = COMPANY_NAME in dto;
+
       const result = await this.prisma.$transaction(
         async (prisma: PrismaClient) => {
           const user = await this.userService.createUser(dto, prisma);
@@ -75,7 +75,6 @@ export class AuthService {
     return !isCompany;
   }
 
-  // after creation of basicAccount module move this method to this(basicAccount) module
   private createBasicAccount(
     userUuid: string,
     password: string,
@@ -89,7 +88,6 @@ export class AuthService {
     });
   }
 
-  // after creation of company module move this method to this(company) module
   private createCompany(
     userUuid: string,
     companyName: string,
@@ -103,7 +101,6 @@ export class AuthService {
     });
   }
 
-  // after creation of individual module move this method to this(individual) module
   private createIndividual(userUuid: string, prisma: PrismaClient) {
     return prisma.individual.create({
       data: {
@@ -113,20 +110,37 @@ export class AuthService {
   }
 
   private async hashPassword(password: string): Promise<string> {
-    return bcrypt.hash(password, SALT);
+    try {
+      return await bcrypt.hash(password, SALT);
+    } catch (error) {
+      this.logger.error('Error hashing password', error.stack);
+      throw new InternalServerErrorException('Error hashing password');
+    }
   }
 
   async login(email: string, password: string) {
-    const user = await this.userService.validateUserPassword(email, password);
-    const isIndividual = await this.isIndividual(user.userUuid);
-    return this.generateAuthToken(user, isIndividual);
+    try {
+      const user = await this.userService.validateUserPassword(email, password);
+      const isIndividual = await this.isIndividual(user.userUuid);
+      return this.generateAuthToken(user, isIndividual);
+    } catch (error) {
+      this.logger.error('Error during login', error.stack);
+      throw new InternalServerErrorException('Error during login');
+    }
   }
-  // after creation of individual module move this method to this(individual) module
+
   private async isIndividual(userUuid: string): Promise<boolean> {
-    const individual = await this.prisma.individual.findUnique({
-      where: { userUuid },
-    });
-    return !!individual;
+    try {
+      const individual = await this.prisma.individual.findUnique({
+        where: { userUuid },
+      });
+      return !!individual;
+    } catch (error) {
+      this.logger.error('Error checking individual status', error.stack);
+      throw new InternalServerErrorException(
+        'Error checking individual status',
+      );
+    }
   }
 
   private generateAuthToken(user: User, isIndividual: boolean) {

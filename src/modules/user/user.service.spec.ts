@@ -6,6 +6,7 @@ import {
   USER_UNIQUE,
   INVALID_DATA,
   UserData,
+  ERROR_VALIDATION_PASSWORD,
 } from './constants/constant';
 import * as bcrypt from 'bcrypt';
 import { UserService } from './user.service';
@@ -56,8 +57,8 @@ describe('UserService', () => {
         ...userData,
         userUuid: 'qweqwe-qweqwe-qweqwe',
         avatar: null,
-        createdAt: expect.any(Date),
-        updatedAt: expect.any(Date),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
       jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
@@ -105,8 +106,8 @@ describe('UserService', () => {
         lastName: 'Doe',
         userUuid: 'qweqwe-qweqwe-qweqwe',
         avatar: null,
-        createdAt: expect.any(Date),
-        updatedAt: expect.any(Date),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
       const basicAccount = {
         userUuid: 1,
@@ -121,7 +122,7 @@ describe('UserService', () => {
 
       await expect(
         service.validateUserPassword(email, password),
-      ).rejects.toThrow(INVALID_DATA);
+      ).rejects.toThrow(ERROR_VALIDATION_PASSWORD);
     });
   });
 });

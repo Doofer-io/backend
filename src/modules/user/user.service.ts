@@ -11,6 +11,7 @@ import {
   USER_UNIQUE,
   INVALID_DATA,
   UserData,
+  ERROR_VALIDATION_PASSWORD,
 } from './constants/constant';
 import { PrismaService } from '../../shared/services/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -30,12 +31,17 @@ export class UserService {
   }
 
   private async ensureUserDoesNotExist(email: string, prisma: PrismaClient) {
-    const existingUser = await prisma.user.findUnique({
-      where: { email: email },
-    });
+    try {
+      const existingUser = await prisma.user.findUnique({
+        where: { email: email },
+      });
 
-    if (existingUser) {
-      throw new ConflictException(USER_UNIQUE);
+      if (existingUser) {
+        throw new ConflictException(USER_UNIQUE);
+      }
+    } catch (error) {
+      this.logger.error(USER_UNIQUE, error.stack);
+      throw new InternalServerErrorException(USER_UNIQUE);
     }
   }
 
@@ -61,30 +67,40 @@ export class UserService {
     email: string,
     password: string,
   ): Promise<User | null> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    try {
+      const user = await this.prisma.user.findUnique({ where: { email } });
 
-    if (!user) {
+      if (!user) {
+        throw new UnauthorizedException(INVALID_DATA);
+      }
+
+      const basicAccount = await this.prisma.basicAccount.findUnique({
+        where: { userUuid: user.userUuid },
+      });
+
+      if (
+        basicAccount &&
+        (await this.isPasswordValid(password, basicAccount.password))
+      ) {
+        return user;
+      }
+
       throw new UnauthorizedException(INVALID_DATA);
+    } catch (error) {
+      this.logger.error(ERROR_VALIDATION_PASSWORD, error.stack);
+      throw new InternalServerErrorException(ERROR_VALIDATION_PASSWORD);
     }
-    // after creation of basicAccount module move this method to this(basicAccount) module
-    const basicAccount = await this.prisma.basicAccount.findUnique({
-      where: { userUuid: user.userUuid },
-    });
-
-    if (
-      basicAccount &&
-      (await this.isPasswordValid(password, basicAccount.password))
-    ) {
-      return user;
-    }
-
-    throw new UnauthorizedException(INVALID_DATA);
   }
 
   private async isPasswordValid(
     password: string,
     hashedPassword: string,
   ): Promise<boolean> {
-    return bcrypt.compare(password, hashedPassword);
+    try {
+      return bcrypt.compare(password, hashedPassword);
+    } catch (error) {
+      this.logger.error(ERROR_VALIDATION_PASSWORD, error.stack);
+      throw new InternalServerErrorException(ERROR_VALIDATION_PASSWORD);
+    }
   }
 }
