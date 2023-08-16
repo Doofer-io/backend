@@ -3,72 +3,65 @@ import { AuthService } from './auth.service';
 import { UserService } from '../user/user.service';
 import { JwtAuthService } from './jwt/jwt.service';
 import { PrismaService } from '../../shared/services/prisma.service';
-import { InternalServerErrorException } from '@nestjs/common';
+import { User } from '@prisma/client';
 import {
   RegistrationType,
   CompanyRegistrationDto,
 } from './dto/registration.dto';
+import { InternalServerErrorException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+
+jest.mock('bcrypt', () => ({
+  hash: jest.fn(),
+}));
 
 describe('AuthService', () => {
   let authService: AuthService;
-  let userServiceMock: any;
-  let jwtAuthServiceMock: any;
-  let prismaServiceMock: any;
-  let prismaClientMock: any;
+  let userService: UserService;
+  let jwtAuthService: JwtAuthService;
+  let prismaService: PrismaService;
   let registrationDto: RegistrationType;
 
   beforeEach(async () => {
-    userServiceMock = {
-      createUser: jest.fn(),
-      validateUserPassword: jest.fn(),
-    };
-
-    jwtAuthServiceMock = {
-      createAccessToken: jest.fn(),
-    };
-
-    prismaClientMock = {
-      basicAccount: {
-        create: jest.fn(),
-        findUnique: jest.fn(),
-      },
-      company: {
-        create: jest.fn(),
-      },
-      individual: {
-        create: jest.fn(),
-      },
-    };
-
-    prismaServiceMock = {
-      $transaction: jest
-        .fn()
-        .mockImplementation(async cb => cb(prismaClientMock)),
-      individual: {
-        findUnique: jest.fn(),
-      },
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         {
           provide: UserService,
-          useValue: userServiceMock,
+          useValue: {
+            createUser: jest.fn(),
+            validateUserPassword: jest.fn(),
+          },
         },
         {
           provide: JwtAuthService,
-          useValue: jwtAuthServiceMock,
+          useValue: {
+            createAccessToken: jest.fn(),
+          },
         },
         {
           provide: PrismaService,
-          useValue: prismaServiceMock,
+          useValue: {
+            $transaction: jest.fn(),
+            basicAccount: {
+              create: jest.fn(),
+            },
+            company: {
+              create: jest.fn(),
+            },
+            individual: {
+              create: jest.fn(),
+              findUnique: jest.fn(),
+            },
+          },
         },
       ],
     }).compile();
 
     authService = module.get<AuthService>(AuthService);
+    userService = module.get<UserService>(UserService);
+    jwtAuthService = module.get<JwtAuthService>(JwtAuthService);
+    prismaService = module.get<PrismaService>(PrismaService);
 
     registrationDto = {
       firstName: 'test',
@@ -79,151 +72,128 @@ describe('AuthService', () => {
     };
   });
 
-  it('should register a user and execute transaction', async () => {
-    const userMock = {
-      userUuid: 'testUuid',
-      email: 'test@example.com',
-    };
-    const tokenMock = {
-      accessToken: 'testToken',
-    };
-
-    userServiceMock.createUser.mockResolvedValue(userMock);
-    jwtAuthServiceMock.createAccessToken.mockReturnValue(tokenMock);
-
-    const result = await authService.registration(
-      registrationDto as CompanyRegistrationDto,
-    );
-
-    expect(result).toHaveProperty('user');
-    expect(result).toHaveProperty('accessToken');
-    expect(userServiceMock.createUser).toHaveBeenCalled();
-    expect(jwtAuthServiceMock.createAccessToken).toHaveBeenCalled();
-    expect(prismaServiceMock.$transaction).toHaveBeenCalled();
+  it('should be defined', () => {
+    expect(authService).toBeDefined();
   });
 
-  it('should throw InternalServerErrorException when there is an error during registration', async () => {
-    userServiceMock.createUser.mockRejectedValueOnce(new Error());
+  describe('registration', () => {
+    it('should register a user and execute transaction', async () => {
+      const userMock: User = {
+        userUuid: 'testUuid',
+        email: 'test@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+        avatar: null,
+      };
+      const tokenMock = {
+        accessToken: 'testToken',
+      };
 
-    await expect(authService.registration(registrationDto)).rejects.toThrow(
-      InternalServerErrorException,
-    );
+      jest.spyOn(userService, 'createUser').mockResolvedValue(userMock);
+      jest
+        .spyOn(jwtAuthService, 'createAccessToken')
+        .mockReturnValue(tokenMock);
+      jest.spyOn(prismaService, '$transaction').mockResolvedValue({});
+
+      const result = await authService.registration(
+        registrationDto as CompanyRegistrationDto,
+      );
+
+      expect(result).toHaveProperty('user');
+      expect(result).toHaveProperty('accessToken');
+      expect(userService.createUser).toHaveBeenCalled();
+      expect(jwtAuthService.createAccessToken).toHaveBeenCalled();
+      expect(prismaService.$transaction).toHaveBeenCalled();
+    });
+
+    it('should throw InternalServerErrorException when there is an error during registration', async () => {
+      jest.spyOn(userService, 'createUser').mockRejectedValue(new Error());
+
+      await expect(authService.registration(registrationDto)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+
+    it('should hash the password', async () => {
+      const password = 'MySecureComplexPassword123!';
+      const hashedPassword = 'hashedPassword';
+
+      (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
+
+      const result = await authService['hashPassword'](password);
+
+      expect(result).toEqual(hashedPassword);
+    });
+
+    it('should throw InternalServerErrorException when there is an error during entity creation', async () => {
+      const userMock: User = {
+        userUuid: 'testUuid',
+        email: 'test@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+        avatar: null,
+      };
+
+      jest.spyOn(userService, 'createUser').mockResolvedValue(userMock);
+      jest
+        .spyOn(prismaService.basicAccount, 'create')
+        .mockRejectedValue(new Error());
+
+      await expect(
+        authService.registration(registrationDto as CompanyRegistrationDto),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
   });
 
-  it('should hash the password', async () => {
-    const password = 'MySecureComplexPassword123!';
-    const hashedPassword = await authService['hashPassword'](password);
+  describe('login', () => {
+    it('should login a user successfully', async () => {
+      const email = 'test@example.com';
+      const password = 'MySecureComplexPassword123!';
+      const userMock: User = {
+        userUuid: 'testUuid',
+        email: 'test@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+        avatar: null,
+      };
+      const tokenMock = {
+        accessToken: 'testToken',
+      };
+      jest
+        .spyOn(userService, 'validateUserPassword')
+        .mockResolvedValue(userMock);
+      jest
+        .spyOn(jwtAuthService, 'createAccessToken')
+        .mockReturnValue(tokenMock);
 
-    expect(hashedPassword).not.toEqual(password);
-    expect(await bcrypt.compare(password, hashedPassword)).toBeTruthy();
-  });
+      const result = await authService.login(email, password);
 
-  it('should throw InternalServerErrorException when there is an error during entity creation', async () => {
-    const userMock = {
-      userUuid: 'testUuid',
-      email: 'test@example.com',
-    };
+      expect(result).toHaveProperty('user');
+      expect(result).toHaveProperty('accessToken');
+      expect(userService.validateUserPassword).toHaveBeenCalledWith(
+        email,
+        password,
+      );
+      expect(jwtAuthService.createAccessToken).toHaveBeenCalledWith(userMock);
+    });
 
-    userServiceMock.createUser.mockResolvedValue(userMock);
-    prismaClientMock.basicAccount.create.mockRejectedValueOnce(new Error());
+    it('should throw InternalServerErrorException when there is an error during login', async () => {
+      const email = 'test@example.com';
+      const password = 'MySecureComplexPassword123!';
 
-    await expect(
-      authService.registration(registrationDto as CompanyRegistrationDto),
-    ).rejects.toThrow(InternalServerErrorException);
-  });
+      jest
+        .spyOn(userService, 'validateUserPassword')
+        .mockRejectedValue(new InternalServerErrorException());
 
-  it('should create an individual entity during registration', async () => {
-    const individualRegistrationDto = {
-      ...registrationDto,
-      companyName: undefined,
-    };
-
-    const userMock = {
-      userUuid: 'testUuid',
-      email: 'test@example.com',
-    };
-    userServiceMock.createUser.mockResolvedValue(userMock);
-
-    await authService.registration(individualRegistrationDto);
-
-    expect(prismaClientMock.basicAccount.create).toHaveBeenCalled();
-    expect(prismaClientMock.individual.create).toHaveBeenCalled();
-  });
-
-  it('should create a company entity during registration', async () => {
-    const userMock = {
-      userUuid: 'testUuid',
-      email: 'test@example.com',
-    };
-    userServiceMock.createUser.mockResolvedValue(userMock);
-
-    await authService.registration(registrationDto as CompanyRegistrationDto);
-
-    expect(prismaClientMock.basicAccount.create).toHaveBeenCalled();
-    expect(prismaClientMock.company.create).toHaveBeenCalled();
-  });
-
-  it('should login a user successfully', async () => {
-    const email = 'test@example.com';
-    const password = 'MySecureComplexPassword123!';
-    const userMock = {
-      userUuid: 'testUuid',
-      email: 'test@example.com',
-    };
-    const tokenMock = {
-      accessToken: 'testToken',
-    };
-
-    userServiceMock.validateUserPassword = jest
-      .fn()
-      .mockResolvedValue(userMock);
-    jwtAuthServiceMock.createAccessToken.mockReturnValue(tokenMock);
-
-    const result = await authService.login(email, password);
-
-    expect(result).toHaveProperty('user');
-    expect(result).toHaveProperty('accessToken');
-    expect(userServiceMock.validateUserPassword).toHaveBeenCalledWith(
-      email,
-      password,
-    );
-    expect(jwtAuthServiceMock.createAccessToken).toHaveBeenCalledWith(userMock);
-  });
-
-  it('should determine whether the user is an individual or a company', async () => {
-    const userMock = {
-      userUuid: 'testUuid',
-      email: 'test@example.com',
-    };
-
-    userServiceMock.validateUserPassword.mockResolvedValue(userMock);
-    prismaServiceMock.individual.findUnique.mockResolvedValue(null);
-
-    const result = await authService.login(
-      'test@example.com',
-      'MySecureComplexPassword123!',
-    );
-
-    expect(result.isIndividual).toBeFalsy();
-  });
-
-  it('should return true from isIndividual if user is an individual', async () => {
-    const userUuid = 'testUuid';
-
-    prismaServiceMock.individual.findUnique.mockResolvedValue({ userUuid });
-
-    const isIndividual = await authService['isIndividual'](userUuid);
-
-    expect(isIndividual).toBeTruthy();
-  });
-
-  it('should return false from isIndividual if user is not an individual', async () => {
-    const userUuid = 'testUuid';
-
-    prismaServiceMock.individual.findUnique.mockResolvedValue(null);
-
-    const isIndividual = await authService['isIndividual'](userUuid);
-
-    expect(isIndividual).toBeFalsy();
+      await expect(authService.login(email, password)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
   });
 });

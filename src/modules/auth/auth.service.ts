@@ -51,7 +51,6 @@ export class AuthService {
     }
   }
 
-  // after creation of company module move this method to this(company) module
   private async createEntities(
     userUuid: string,
     password: string,
@@ -76,7 +75,7 @@ export class AuthService {
     return !isCompany;
   }
 
-  // after creation of company module move this method to this(company) module
+  // after creation of basicAccount module move this method to this(basicAccount) module
   private createBasicAccount(
     userUuid: string,
     password: string,
@@ -104,7 +103,7 @@ export class AuthService {
     });
   }
 
-  // after creation of company module move this method to this(company) module
+  // after creation of individual module move this method to this(individual) module
   private createIndividual(userUuid: string, prisma: PrismaClient) {
     return prisma.individual.create({
       data: {
@@ -122,7 +121,7 @@ export class AuthService {
     const isIndividual = await this.isIndividual(user.userUuid);
     return this.generateAuthToken(user, isIndividual);
   }
-  // after creation of company module move this method to this(company) module
+  // after creation of individual module move this method to this(individual) module
   private async isIndividual(userUuid: string): Promise<boolean> {
     const individual = await this.prisma.individual.findUnique({
       where: { userUuid },
