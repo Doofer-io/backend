@@ -2,6 +2,7 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import {
@@ -12,7 +13,10 @@ import { UserService } from '../user/user.service';
 import { COMPANY_NAME, REGISTER_ERROR, SALT } from './constants/constant';
 import { JwtAuthService } from './jwt/jwt.service';
 import { PrismaService } from '../../shared/services/prisma.service';
-import { PrismaClient, User } from '@prisma/client';
+import { OAUTH_PROVIDER, PrismaClient, User } from '@prisma/client';
+import { RegistrationGoogleType } from './dto/google-registration.dto';
+import { JWTTempPayload } from './jwt/interfaces/jwt.interface';
+import { INVALID_DATA } from '../user/constants/constant';
 
 @Injectable()
 export class AuthService {
@@ -48,6 +52,93 @@ export class AuthService {
     } catch (error) {
       this.logger.error(`${REGISTER_ERROR}: ${error.message}`, error.stack);
       throw new InternalServerErrorException(error.message, REGISTER_ERROR);
+    }
+  }
+
+  async googleLogin(dto: JWTTempPayload) {
+    try {
+      let user = await this.prisma.user.findUnique({
+        where: { email: dto.email },
+      });
+
+      let oAuthAccount = await this.prisma.oauthAccount.findUnique({
+        where: { acc: dto.providerId, userUuid: user.userUuid },
+      });
+
+      if (!oAuthAccount) {
+        throw new UnauthorizedException(INVALID_DATA);
+      }
+
+      const isIndividual = await this.isIndividual(user.userUuid);
+      return this.generateAuthToken(user, isIndividual);
+    } catch (error) {
+      this.logger.error('Error during Google login', error.stack);
+      throw new InternalServerErrorException(
+        'Error during Google login',
+        error.message,
+      );
+    }
+  }
+
+  async googleRegistration(dto: RegistrationGoogleType): Promise<any> {
+    try {
+      const userData = this.jwtAuthService.verifyUser(dto.token);
+      const hashedPassword = await this.hashPassword(dto.password);
+      let isIndividual = true;
+
+      const isCompany = COMPANY_NAME in dto;
+
+      // Создание нового пользователя, если таковой не существует
+      const user = await this.prisma.user.create({
+        data: {
+          email: userData.email,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          avatar: userData.picture,
+        },
+      });
+
+      // Создание связанной записи в таблице OauthAccount
+      await this.prisma.oauthAccount.create({
+        data: {
+          userUuid: user.userUuid,
+          provider: OAUTH_PROVIDER.GOOGLE,
+          acc: userData.id,
+        },
+      });
+
+      await this.prisma.basicAccount.create({
+        data: {
+          userUuid: user.userUuid,
+          password: hashedPassword,
+        },
+      });
+
+      if (isCompany) {
+        await this.prisma.company.create({
+          data: {
+            userUuid: user.userUuid,
+            companyName: dto.companyName,
+          },
+        });
+
+        isIndividual = false;
+      } else {
+        await this.prisma.individual.create({
+          data: {
+            userUuid: user.userUuid,
+          },
+        });
+      }
+
+      // Генерация и возврат JWT токена
+      return this.generateAuthToken(user, isIndividual);
+    } catch (error) {
+      this.logger.error('Error during Google login', error.stack);
+      throw new InternalServerErrorException(
+        'Error during Google login',
+        error.message,
+      );
     }
   }
 

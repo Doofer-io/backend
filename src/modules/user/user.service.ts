@@ -73,7 +73,7 @@ export class UserService {
       if (!user) {
         throw new UnauthorizedException(INVALID_DATA);
       }
-
+      // move thatn to basiAccount module
       const basicAccount = await this.prisma.basicAccount.findUnique({
         where: { userUuid: user.userUuid },
       });
