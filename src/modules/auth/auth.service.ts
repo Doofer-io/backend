@@ -57,11 +57,11 @@ export class AuthService {
 
   async googleLogin(dto: JWTTempPayload) {
     try {
-      let user = await this.prisma.user.findUnique({
+      const user = await this.prisma.user.findUnique({
         where: { email: dto.email },
       });
 
-      let oAuthAccount = await this.prisma.oauthAccount.findUnique({
+      const oAuthAccount = await this.prisma.oauthAccount.findUnique({
         where: { acc: dto.providerId, userUuid: user.userUuid },
       });
 
