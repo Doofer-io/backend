@@ -3,10 +3,13 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { INestApplication } from '@nestjs/common';
 import { PrismaService } from '../src/shared/services/prisma.service';
+import { JwtAuthService } from '../src/modules/auth/jwt/jwt.service';
 
 describe('AuthService (e2e)', () => {
   let app: INestApplication;
   let prismaService: PrismaService;
+  let jwtAuthService: JwtAuthService;
+
   const userRegistrationDto = {
     email: 'test@example.com',
     password: 'MySecureComplexPassword123!',
@@ -22,6 +25,7 @@ describe('AuthService (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     prismaService = moduleFixture.get<PrismaService>(PrismaService);
+    jwtAuthService = moduleFixture.get<JwtAuthService>(JwtAuthService);
     await app.init();
   });
 
@@ -100,9 +104,21 @@ describe('AuthService (e2e)', () => {
 
   it('/auth/google-registration (POST)', async () => {
     // this test may fail, you need to pass real token
+    const userDataFromGoogle = {
+      provider: 'GOOGLE',
+      providerId: '100791518407288635126',
+      email: 'artur.demenskiy03@gmail.com',
+      firstName: 'Артур',
+      lastName: 'Деменський',
+      picture:
+        'https://lh3.googleusercontent.com/a/AAcHTtdkYhJiGuGIDBAU-0pr1b9mMBbqW8fn-RwLR5wE2qNT=s96-c',
+    };
+
+    const { accessToken } =
+      jwtAuthService.createTempAccesstoken(userDataFromGoogle);
+
     const googleRegistrationDto = {
-      token:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwcm92aWRlciI6Imdvb2dsZSIsInByb3ZpZGVySWQiOiIxMDA3OTE1MTg0MDcyODg2MzUxMjYiLCJlbWFpbCI6ImFydHVyLmRlbWVuc2tpeTAzQGdtYWlsLmNvbSIsImZpcnN0TmFtZSI6ItCQ0YDRgtGD0YAiLCJsYXN0TmFtZSI6ItCU0LXQvNC10L3RgdGM0LrQuNC5IiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FBY0hUdGRrWWhKaUd1R0lEQkFVLTBwcjFiOW1NQmJxVzhmbi1Sd0xSNXdFMnFOVD1zOTYtYyIsImlhdCI6MTY5MjI2MjE5OSwiZXhwIjoxNjkyMjYyNDk5fQ.f6RfQAWbPsYUDLAt9aD8k2Ksj5h-Xn8L7PmI9FKNdUw',
+      token: accessToken,
       password: 'MySecureComplexPassword123!',
       userType: 'individual',
     };
