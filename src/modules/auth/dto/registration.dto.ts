@@ -62,6 +62,7 @@ export class CompanyRegistrationDto extends IndividualRegistrationDto {
   })
   @IsString()
   @IsNotEmpty()
+  @MinLength(2)
   readonly companyName: string;
 }
 

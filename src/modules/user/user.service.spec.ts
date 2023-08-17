@@ -1,83 +1,128 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UserService } from './user.service';
 import { PrismaService } from '../../shared/services/prisma.service';
+import { User } from '@prisma/client';
 import {
-  InternalServerErrorException,
-  ConflictException,
-} from '@nestjs/common';
-import { USER_CREATION_ERROR } from './constants/constant';
+  USER_CREATION_ERROR,
+  USER_UNIQUE,
+  INVALID_DATA,
+  UserData,
+  ERROR_VALIDATION_PASSWORD,
+} from './constants/constant';
+import * as bcrypt from 'bcrypt';
+import { UserService } from './user.service';
+
+jest.mock('bcrypt', () => ({
+  compare: jest.fn(),
+}));
 
 describe('UserService', () => {
-  let userService: UserService;
-  let prismaServiceMock: Partial<PrismaService>;
+  let service: UserService;
+  let prisma: PrismaService;
 
   beforeEach(async () => {
-    prismaServiceMock = {
-      user: {
-        create: jest.fn() as jest.Mock,
-        findUnique: jest.fn() as jest.Mock,
-      } as any,
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserService,
-        { provide: PrismaService, useValue: prismaServiceMock },
+        {
+          provide: PrismaService,
+          useValue: {
+            user: {
+              create: jest.fn(),
+              findUnique: jest.fn(),
+            },
+            basicAccount: {
+              findUnique: jest.fn(),
+            },
+          },
+        },
       ],
     }).compile();
 
-    userService = module.get<UserService>(UserService);
+    service = module.get<UserService>(UserService);
+    prisma = module.get<PrismaService>(PrismaService);
   });
 
   it('should be defined', () => {
-    expect(userService).toBeDefined();
+    expect(service).toBeDefined();
   });
 
   describe('createUser', () => {
-    const userData = {
-      email: 'test@example.com',
-      firstName: 'Test',
-      lastName: 'User',
-    };
-
-    it('should create a user successfully', async () => {
-      const createdUser = {
-        userUuid: 'someUuid',
+    it('should create a user if email is not already registered', async () => {
+      const userData: UserData = {
+        email: 'test@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      };
+      const user: User = {
         ...userData,
+        userUuid: 'qweqwe-qweqwe-qweqwe',
+        avatar: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
-      (prismaServiceMock.user.findUnique as jest.Mock).mockResolvedValueOnce(
-        null,
-      );
-      (prismaServiceMock.user.create as jest.Mock).mockResolvedValueOnce(
-        createdUser,
-      );
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
+      jest.spyOn(prisma.user, 'create').mockResolvedValue(user as User);
 
-      const result = await userService.createUser(userData);
-      expect(result).toEqual(createdUser);
+      expect(await service.createUser(userData)).toEqual(user);
     });
 
-    it('should throw a ConflictException when user with email already exists', async () => {
-      (prismaServiceMock.user.findUnique as jest.Mock).mockResolvedValueOnce(
-        userData,
-      );
+    it('should throw a ConflictException if email is already registered', async () => {
+      const userData: UserData = {
+        email: 'test@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      };
 
-      await expect(userService.createUser(userData)).rejects.toThrow(
-        new ConflictException('User already exists'),
-      );
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue({} as User);
+
+      await expect(service.createUser(userData)).rejects.toThrow(USER_UNIQUE);
     });
 
-    it('should throw an error when user creation fails', async () => {
-      (prismaServiceMock.user.findUnique as jest.Mock).mockResolvedValueOnce(
-        null,
-      );
-      (prismaServiceMock.user.create as jest.Mock).mockRejectedValueOnce(
-        new Error('Error while creating user'),
-      );
+    it('should throw an InternalServerErrorException when an error is thrown during creation', async () => {
+      const userData: UserData = {
+        email: 'test@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      };
 
-      await expect(userService.createUser(userData)).rejects.toThrow(
-        new InternalServerErrorException(USER_CREATION_ERROR),
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
+      jest.spyOn(prisma.user, 'create').mockRejectedValue(new Error());
+
+      await expect(service.createUser(userData)).rejects.toThrow(
+        USER_CREATION_ERROR,
       );
+    });
+  });
+
+  describe('validateUserPassword', () => {
+    it('should throw an UnauthorizedException if password is invalid', async () => {
+      const email = 'test@example.com';
+      const password = 'password123';
+      const hashedPassword = 'hashedPassword';
+      const user: User = {
+        email,
+        firstName: 'John',
+        lastName: 'Doe',
+        userUuid: 'qweqwe-qweqwe-qweqwe',
+        avatar: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const basicAccount = {
+        userUuid: 1,
+        password: hashedPassword,
+      };
+
+      jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(user as User);
+      jest
+        .spyOn(prisma.basicAccount, 'findUnique')
+        .mockResolvedValue(basicAccount as any);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(
+        service.validateUserPassword(email, password),
+      ).rejects.toThrow(ERROR_VALIDATION_PASSWORD);
     });
   });
 });

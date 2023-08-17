@@ -4,11 +4,15 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { RegistrationType } from './dto/registration.dto';
+import {
+  CompanyRegistrationDto,
+  RegistrationType,
+} from './dto/registration.dto';
 import { UserService } from '../user/user.service';
-import { REGISTER_ERROR, SALT } from './constants/constant';
+import { COMPANY_NAME, REGISTER_ERROR, SALT } from './constants/constant';
 import { JwtAuthService } from './jwt/jwt.service';
 import { PrismaService } from '../../shared/services/prisma.service';
+import { PrismaClient, User } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -22,69 +26,129 @@ export class AuthService {
 
   async registration(dto: RegistrationType) {
     try {
-      const createdUser = await this.createUser(dto);
-      const hashedPassword = this.hashPassword(dto.password);
-      await this.createEntities(createdUser.userUuid, hashedPassword, dto);
-      return {
-        user: createdUser,
-        accessToken: this.jwtAuthService.createAccessToken(createdUser),
-      };
-    } catch (error) {
-      this.logger.error(REGISTER_ERROR, error.stack);
-      throw new InternalServerErrorException(REGISTER_ERROR);
-    }
-  }
+      const hashedPassword = await this.hashPassword(dto.password);
+      const isCompany = COMPANY_NAME in dto;
 
-  private async createUser(dto: RegistrationType) {
-    return this.userService.createUser(dto);
+      const result = await this.prisma.$transaction(
+        async (prisma: PrismaClient) => {
+          const user = await this.userService.createUser(dto, prisma);
+          const isIndividual = await this.createEntities(
+            user.userUuid,
+            hashedPassword,
+            isCompany,
+            dto,
+            prisma,
+          );
+
+          return this.generateAuthToken(user, isIndividual);
+        },
+      );
+
+      return result;
+    } catch (error) {
+      this.logger.error(`${REGISTER_ERROR}: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(error.message, REGISTER_ERROR);
+    }
   }
 
   private async createEntities(
     userUuid: string,
     password: string,
+    isCompany: boolean,
     dto: RegistrationType,
-  ) {
+    prisma: PrismaClient,
+  ): Promise<boolean> {
     const createBasicAccountPromise = this.createBasicAccount(
       userUuid,
       password,
+      prisma,
     );
-    const createEntityPromise =
-      'companyName' in dto
-        ? this.createCompany(userUuid, dto.companyName)
-        : this.createIndividual(userUuid);
-    await this.prisma.$transaction([
-      createBasicAccountPromise,
-      createEntityPromise,
-    ]);
+    const createEntityPromise = isCompany
+      ? this.createCompany(
+          userUuid,
+          (dto as CompanyRegistrationDto).companyName,
+          prisma,
+        )
+      : this.createIndividual(userUuid, prisma);
+
+    await Promise.all([createBasicAccountPromise, createEntityPromise]);
+    return !isCompany;
   }
 
-  private createBasicAccount(userUuid: string, password: string) {
-    return this.prisma.basicAccount.create({
+  private createBasicAccount(
+    userUuid: string,
+    password: string,
+    prisma: PrismaClient,
+  ) {
+    return prisma.basicAccount.create({
       data: {
         userUuid,
         password,
       },
     });
   }
-  // after creation of company module move this method to this(company) module
-  private createCompany(userUuid: string, companyName: string) {
-    return this.prisma.company.create({
+
+  private createCompany(
+    userUuid: string,
+    companyName: string,
+    prisma: PrismaClient,
+  ) {
+    return prisma.company.create({
       data: {
         userUuid,
         companyName,
       },
     });
   }
-  // after creation of individual module move this method to this(individual) module
-  private createIndividual(userUuid: string) {
-    return this.prisma.individual.create({
+
+  private createIndividual(userUuid: string, prisma: PrismaClient) {
+    return prisma.individual.create({
       data: {
         userUuid,
       },
     });
   }
 
-  private hashPassword(password: string): string {
-    return bcrypt.hashSync(password, SALT);
+  private async hashPassword(password: string): Promise<string> {
+    try {
+      return await bcrypt.hash(password, SALT);
+    } catch (error) {
+      this.logger.error('Error hashing password', error.stack);
+      throw new InternalServerErrorException('Error hashing password');
+    }
+  }
+
+  async login(email: string, password: string) {
+    try {
+      const user = await this.userService.validateUserPassword(email, password);
+      const isIndividual = await this.isIndividual(user.userUuid);
+      return this.generateAuthToken(user, isIndividual);
+    } catch (error) {
+      this.logger.error('Error during login', error.stack);
+      throw new InternalServerErrorException('Error during login');
+    }
+  }
+
+  private async isIndividual(userUuid: string): Promise<boolean> {
+    try {
+      const individual = await this.prisma.individual.findUnique({
+        where: { userUuid },
+      });
+      return !!individual;
+    } catch (error) {
+      this.logger.error('Error checking individual status', error.stack);
+      throw new InternalServerErrorException(
+        'Error checking individual status',
+      );
+    }
+  }
+
+  private generateAuthToken(user: User, isIndividual: boolean) {
+    const token = this.jwtAuthService.createAccessToken(user);
+    return {
+      user,
+      accessToken: token.accessToken,
+      isIndividual,
+    };
   }
 }
