@@ -72,21 +72,9 @@ export class AuthController {
     description: 'Redirect to front to pick type of user and set password',
   })
   @UseGuards(AuthGuard('google'))
-  googleAuthRedirect(@Req() req, @Res() res) {
-    const userData = this.authService.googleLogin(req.user);
-
-    if (!userData) {
-      // need to check if req.user is alredy have inside oAuthAccount table to login him if not go to redirect
-      const jwt = this.jwtAuthService.createTempAccesstoken(req.user);
-
-      res.redirect(
-        `${this.configService.get<string>('FRONT_URL')}/?token=${
-          jwt.accessToken
-        }`,
-      );
-    }
-
-    return userData;
+  async googleAuthRedirect(@Req() req, @Res() res) {
+    const result = await this.authService.googleLogin(req.user, req, res);
+    return res.json(result);
   }
 
   @Post('google-registration')

@@ -15,6 +15,7 @@ export class JwtAuthService {
     return this.createToken(
       user,
       this.configService.get<string>('JWT_EXPIRES_IN'),
+      this.configService.get<string>('JWT_SECRET'),
     );
   }
 
@@ -22,14 +23,18 @@ export class JwtAuthService {
     return this.createToken(
       user,
       this.configService.get<string>('JWT_EXPIRES_IN_TEMP'),
+      this.configService.get<string>('JWT_SECRET'),
     );
   }
 
   private createToken(
     payload: JWTTempPayload | JWTPayload,
-    expiresIn?: string,
+    expiresIn: string,
+    secret: string,
   ): { accessToken: string } {
-    const accessToken = this.jwtService.sign(payload, { expiresIn });
+    console.log('secret', secret);
+    console.log('time', expiresIn);
+    const accessToken = this.jwtService.sign(payload, { secret, expiresIn });
 
     if (!accessToken) {
       throw new InternalServerErrorException(JWT_ERROR);

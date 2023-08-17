@@ -9,7 +9,7 @@ export const validationSchema = Joi.object({
   JWT_SECRET: Joi.string().required(),
   JWT_EXPIRES_IN: Joi.string().required(),
   // env for google
-  JWT_EXPIRES_IN_TEMP: Joi.string().valid('15m'),
+  JWT_EXPIRES_IN_TEMP: Joi.string().valid('5m'),
   CLIENT_ID: Joi.string(),
   CLIENT_SECRET: Joi.string(),
   API_URL: Joi.string(),

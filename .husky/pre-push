@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-npx branch-name-lint branchlint.config.json && yarn run test:e2e
+npx branch-name-lint branchlint.config.json && yarn run test:e2e && yarn run test
