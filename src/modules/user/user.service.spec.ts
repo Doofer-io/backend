@@ -4,7 +4,6 @@ import { User } from '@prisma/client';
 import {
   USER_CREATION_ERROR,
   USER_UNIQUE,
-  INVALID_DATA,
   UserData,
   ERROR_VALIDATION_PASSWORD,
 } from './constants/constant';

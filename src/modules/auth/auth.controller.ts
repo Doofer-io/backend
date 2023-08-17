@@ -1,16 +1,37 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Req,
+  UseGuards,
+  Res,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RegistrationRequest, RegistrationType } from './dto/registration.dto';
 import { LoginRequest } from './dto/login.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthService } from './jwt/jwt.service';
+import { ConfigService } from '@nestjs/config';
+import {
+  RegistrationGoogleRequest,
+  RegistrationGoogleType,
+} from './dto/google-registration.dto';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private jwtAuthService: JwtAuthService,
+    private configService: ConfigService,
+  ) {}
 
   @Post('registration')
-  @ApiOperation({ summary: 'Registration new user' })
+  @ApiOperation({
+    summary: 'Registration new user using basic flow (email & password)',
+  })
   @ApiBody({ type: RegistrationRequest })
   @ApiResponse({
     status: 200,
@@ -21,7 +42,7 @@ export class AuthController {
   }
 
   @Post('login')
-  @ApiOperation({ summary: 'Log in' })
+  @ApiOperation({ summary: 'Log in using basic flow (email & password)' })
   @ApiBody({ type: LoginRequest })
   @ApiResponse({
     status: 200,
@@ -29,5 +50,43 @@ export class AuthController {
   })
   async login(@Body() body: LoginRequest) {
     return this.authService.login(body.email, body.password);
+  }
+
+  @Get('google')
+  @ApiOperation({ summary: 'Google auth' })
+  @ApiResponse({
+    status: 300,
+    description: 'Redirect to google/callback',
+  })
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {
+    return 'Google Auth';
+  }
+
+  @Get('google/callback')
+  @ApiOperation({
+    summary: 'Google auth callback that return data from google',
+  })
+  @ApiResponse({
+    status: 300,
+    description: 'Redirect to front to pick type of user and set password',
+  })
+  @UseGuards(AuthGuard('google'))
+  async googleAuthRedirect(@Req() req, @Res() res) {
+    const result = await this.authService.googleLogin(req.user, req, res);
+    return res.json(result);
+  }
+
+  @Post('google-registration')
+  @ApiOperation({
+    summary: 'Google auth callback that return data from google',
+  })
+  @ApiBody({ type: RegistrationGoogleRequest })
+  @ApiResponse({
+    status: 300,
+    description: 'Redirect to front to pick type of user and set password',
+  })
+  async registerGoogleUser(@Body() body: RegistrationGoogleType): Promise<any> {
+    return this.authService.googleRegistration(body);
   }
 }

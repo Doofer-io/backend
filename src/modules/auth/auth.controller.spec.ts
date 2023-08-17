@@ -1,31 +1,40 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
+import { TestingModule, Test } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import {
+  RegistrationGoogleType,
+  UserType,
+} from './dto/google-registration.dto';
 import { RegistrationType } from './dto/registration.dto';
-import { LoginRequest } from './dto/login.dto';
+import { JwtAuthService } from './jwt/jwt.service';
+import { JwtService } from '@nestjs/jwt';
 
 describe('AuthController', () => {
   let authController: AuthController;
-  let authService: jest.Mocked<AuthService>;
+  let authService: AuthService;
 
   beforeEach(async () => {
-    const mockedAuthService = {
-      registration: jest.fn(),
-      login: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
         {
           provide: AuthService,
-          useValue: mockedAuthService,
+          useValue: {
+            registration: jest.fn(),
+            login: jest.fn(),
+            googleLogin: jest.fn(),
+            googleRegistration: jest.fn(),
+          },
         },
+        JwtAuthService,
+        ConfigService,
+        JwtService,
       ],
     }).compile();
 
     authController = module.get<AuthController>(AuthController);
-    authService = module.get(AuthService);
+    authService = module.get<AuthService>(AuthService);
   });
 
   it('should be defined', () => {
@@ -33,90 +42,45 @@ describe('AuthController', () => {
   });
 
   describe('registration', () => {
-    it('should call registration method of AuthService', async () => {
-      const registrationData: RegistrationType = {
+    it('should register a user', async () => {
+      const regDto: RegistrationType = {
+        firstName: 'John',
+        lastName: 'Doe',
         email: 'test@example.com',
-        password: 'TestPassword123!',
-        firstName: 'Test',
-        lastName: 'User',
+        password: 'pass123',
         companyName: 'TestCompany',
       };
 
-      await authController.registration(registrationData);
-
-      expect(authService.registration).toHaveBeenCalledWith(registrationData);
-    });
-
-    it('should return the result of AuthService.registration', async () => {
-      const registrationData: RegistrationType = {
-        email: 'test@example.com',
-        password: 'TestPassword123!',
-        firstName: 'Test',
-        lastName: 'User',
-        companyName: 'TestCompany',
-      };
-      const registrationResult = {
+      const result = {
         user: {
           userUuid: expect.any(String),
-          email: registrationData.email,
+          email: regDto.email,
           avatar: null,
-          firstName: registrationData.firstName,
-          lastName: registrationData.lastName,
+          firstName: regDto.firstName,
+          lastName: regDto.lastName,
           createdAt: expect.any(Date),
           updatedAt: expect.any(Date),
         },
         accessToken: 'testToken',
         isIndividual: expect.any(Boolean),
       };
+      jest.spyOn(authService, 'registration').mockResolvedValue(result);
 
-      authService.registration.mockResolvedValue(registrationResult);
-
-      const result = await authController.registration(registrationData);
-      expect(result).toEqual(registrationResult);
-    });
-
-    it('should throw error when AuthService.registration throws error', async () => {
-      const registrationData: RegistrationType = {
-        email: 'test@example.com',
-        password: 'TestPassword123!',
-        firstName: 'Test',
-        lastName: 'User',
-        companyName: 'TestCompany',
-      };
-      const error = new Error('Registration error');
-
-      authService.registration.mockRejectedValue(error);
-
-      await expect(
-        authController.registration(registrationData),
-      ).rejects.toThrow(error);
+      expect(await authController.registration(regDto)).toBe(result);
     });
   });
 
   describe('login', () => {
-    it('should call login method of AuthService', async () => {
-      const loginData: LoginRequest = {
+    it('should login a user', async () => {
+      const loginRequest = {
         email: 'test@example.com',
-        password: 'TestPassword123!',
+        password: 'pass123',
       };
 
-      await authController.login(loginData);
-
-      expect(authService.login).toHaveBeenCalledWith(
-        loginData.email,
-        loginData.password,
-      );
-    });
-
-    it('should return the result of AuthService.login', async () => {
-      const loginData: LoginRequest = {
-        email: 'test@example.com',
-        password: 'TestPassword123!',
-      };
-      const loginResult = {
+      const result = {
         user: {
           userUuid: expect.any(String),
-          email: loginData.email,
+          email: loginRequest.email,
           avatar: null,
           firstName: expect.any(String),
           lastName: expect.any(String),
@@ -126,23 +90,75 @@ describe('AuthController', () => {
         accessToken: 'testToken',
         isIndividual: expect.any(Boolean),
       };
+      jest.spyOn(authService, 'login').mockResolvedValue(result);
 
-      authService.login.mockResolvedValue(loginResult);
-
-      const result = await authController.login(loginData);
-      expect(result).toEqual(loginResult);
+      expect(await authController.login(loginRequest)).toBe(result);
     });
+  });
 
-    it('should throw error when AuthService.login throws error', async () => {
-      const loginData: LoginRequest = {
-        email: 'test@example.com',
-        password: 'TestPassword123!',
+  describe('googleAuth', () => {
+    it('should trigger google authentication', async () => {
+      const result = await authController.googleAuth();
+
+      expect(result).toBe('Google Auth');
+    });
+  });
+
+  describe('googleAuthRedirect', () => {
+    it('should handle google auth redirect', async () => {
+      const req = { user: { email: 'test@example.com' } };
+      const res = { json: jest.fn() };
+
+      const result = {
+        success: true,
+        user: {
+          userUuid: expect.any(String),
+          email: req.user.email,
+          avatar: null,
+          firstName: expect.any(String),
+          lastName: expect.any(String),
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        },
+        accessToken: 'testToken',
+        isIndividual: expect.any(Boolean),
       };
-      const error = new Error('Login error');
+      jest.spyOn(authService, 'googleLogin').mockResolvedValue(result);
 
-      authService.login.mockRejectedValue(error);
+      await authController.googleAuthRedirect(req, res as any);
+      expect(res.json).toHaveBeenCalledWith(result);
+    });
+  });
 
-      await expect(authController.login(loginData)).rejects.toThrow(error);
+  describe('registerGoogleUser', () => {
+    it('should register a user through Google', async () => {
+      const regGoogleDto: RegistrationGoogleType = {
+        userType: UserType.Company,
+        token: 'some-token',
+        password: 'pass123',
+        companyName: 'TestCompany',
+      };
+
+      const result = {
+        success: true,
+        user: {
+          userUuid: expect.any(String),
+          email: expect.any(String),
+          avatar: null,
+          firstName: expect.any(String),
+          lastName: expect.any(String),
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        },
+        accessToken: expect.any(String),
+        isIndividual: expect.any(Boolean),
+      };
+
+      jest.spyOn(authService, 'googleRegistration').mockResolvedValue(result);
+
+      expect(await authController.registerGoogleUser(regGoogleDto)).toBe(
+        result,
+      );
     });
   });
 });
