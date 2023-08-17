@@ -32,8 +32,6 @@ export class JwtAuthService {
     expiresIn: string,
     secret: string,
   ): { accessToken: string } {
-    console.log('secret', secret);
-    console.log('time', expiresIn);
     const accessToken = this.jwtService.sign(payload, { secret, expiresIn });
 
     if (!accessToken) {
