@@ -3,11 +3,11 @@ export interface JWTPayload {
   userUuid: string;
 }
 
-export interface JWTTempPayload {
+export interface OAuthPayload {
   provider: string;
   providerId: string;
   email: string;
   firstName: string;
   lastName: string;
-  picture: string;
+  picture: string | null;
 }

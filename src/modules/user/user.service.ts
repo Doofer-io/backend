@@ -10,11 +10,11 @@ import {
   USER_CREATION_ERROR,
   USER_UNIQUE,
   INVALID_DATA,
-  UserData,
   ERROR_VALIDATION_PASSWORD,
 } from './constants/constant';
 import { PrismaService } from '../../shared/services/prisma.service';
 import * as bcrypt from 'bcrypt';
+import { UserData } from './interfaces/interfaces';
 
 @Injectable()
 export class UserService {
@@ -73,7 +73,7 @@ export class UserService {
       if (!user) {
         throw new UnauthorizedException(INVALID_DATA);
       }
-      // move thatn to basiAccount module
+      
       const basicAccount = await this.prisma.basicAccount.findUnique({
         where: { userUuid: user.userUuid },
       });
@@ -92,7 +92,7 @@ export class UserService {
     }
   }
 
-  private async isPasswordValid(
+  async isPasswordValid(
     password: string,
     hashedPassword: string,
   ): Promise<boolean> {

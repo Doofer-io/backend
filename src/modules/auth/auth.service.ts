@@ -2,6 +2,7 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import {
@@ -10,18 +11,23 @@ import {
 } from './dto/registration.dto';
 import { UserService } from '../user/user.service';
 import {
-  AuthRepsonse,
   COMPANY_NAME,
-  GoogleAuthResponse,
+  HASHING_ERROR,
+  INDIVIDUAL_CHECK_ERROR,
+  LOGIN_ERROR,
+  OAUTH_LOGIN_ERROR,
+  OAUTH_REGISTRATION_ERROR,
   REGISTER_ERROR,
   SALT,
 } from './constants/constant';
 import { JwtAuthService } from './jwt/jwt.service';
 import { PrismaService } from '../../shared/services/prisma.service';
 import { OAUTH_PROVIDER, PrismaClient, User } from '@prisma/client';
-import { RegistrationGoogleType } from './dto/google-registration.dto';
-import { JWTTempPayload } from './jwt/interfaces/jwt.interface';
+import { OAuthPayload } from './jwt/interfaces/jwt.interface';
 import { ConfigService } from '@nestjs/config';
+import { INVALID_DATA } from '../user/constants/constant';
+import { CompanyRegistrationOAuthDto, RegistrationOAuthType } from './dto/oauth-registration.dto';
+import { AccessTokenResponse, UserDataResponse } from './interfaces/interfaces';
 
 @Injectable()
 export class AuthService {
@@ -34,7 +40,7 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  async registration(dto: RegistrationType): Promise<AuthRepsonse> {
+  async registration(dto: RegistrationType): Promise<AccessTokenResponse> {
     try {
       const hashedPassword = await this.hashPassword(dto.password);
       const isCompany = COMPANY_NAME in dto;
@@ -61,55 +67,55 @@ export class AuthService {
     }
   }
 
-  async googleLogin(
-    dto: JWTTempPayload,
-    req,
+  async oauthLogin(
+    dto: OAuthPayload,
     res,
-  ): Promise<GoogleAuthResponse> {
+  ): Promise<AccessTokenResponse> {
     try {
       const user = await this.prisma.user.findUnique({
         where: { email: dto.email },
       });
 
       if (user) {
-        const oAuthAccount = await this.findOAuthAccount(
-          user.userUuid,
-          dto.providerId,
-          this.prisma,
-        );
+        const oAuthAccount = await this.prisma.oauthAccount.findUnique({
+          where: { userUuid: user.userUuid },
+        });
 
         if (!oAuthAccount) {
           await this.createOAuthAccount(
             user.userUuid,
-            OAUTH_PROVIDER.GOOGLE,
+            dto.provider as OAUTH_PROVIDER,
             dto.providerId,
             this.prisma,
           );
+        }
+        const isPasswordsValid = await this.userService.isPasswordValid(dto.providerId, oAuthAccount.acc);
+        
+        if (!isPasswordsValid || !oAuthAccount) {
+          throw new UnauthorizedException(INVALID_DATA);
         }
 
         const isIndividual = await this.isIndividual(user.userUuid);
         const userData = this.generateAuthToken(user, isIndividual);
 
         return {
-          success: true,
           user: userData.user,
           accessToken: userData.accessToken,
           isIndividual: userData.isIndividual,
         };
       }
 
-      // Если код дошел до этого момента, значит, пользователя нет
-      const jwt = this.jwtAuthService.createTempAccesstoken(req.user);
+      const jwt = this.jwtAuthService.createTempAccesstoken(dto);
       res.redirect(
         `${this.configService.get<string>('FRONT_URL')}/?token=${
           jwt.accessToken
         }`,
       );
     } catch (error) {
-      this.logger.error('Error during Google login', error.stack);
+      this.logger.error(OAUTH_LOGIN_ERROR, error.stack);
       throw new InternalServerErrorException(
-        'Error during Google login',
-        error.message,
+        OAUTH_LOGIN_ERROR,
+        error.stack,
       );
     }
   }
@@ -124,13 +130,13 @@ export class AuthService {
     });
   }
 
-  async registerWithGoogle(
-    userData: any,
+  async registerWithOAuth(
+    userData: OAuthPayload,
     password: string,
     isCompany: boolean,
     companyName: string | null,
     prisma: PrismaClient,
-  ): Promise<{ user: User; isIndividual: boolean }> {
+  ): Promise<UserDataResponse> {
     const user = await prisma.user.create({
       data: {
         email: userData.email,
@@ -142,7 +148,7 @@ export class AuthService {
 
     await this.createOAuthAccount(
       user.userUuid,
-      OAUTH_PROVIDER.GOOGLE,
+      userData.provider as OAUTH_PROVIDER,
       userData.providerId,
       prisma,
     );
@@ -161,16 +167,16 @@ export class AuthService {
     return { user, isIndividual };
   }
 
-  async googleRegistration(dto: RegistrationGoogleType): Promise<AuthRepsonse> {
+  async oauthRegistration(dto: RegistrationOAuthType): Promise<AccessTokenResponse> {
     try {
       const userData = this.jwtAuthService.verifyUser(dto.token);
       const hashedPassword = await this.hashPassword(dto.password);
       const isCompany = COMPANY_NAME in dto;
-      const companyName = (dto as any).companyName || null;
+      const companyName = (dto as CompanyRegistrationOAuthDto).companyName || null;
 
       const result = await this.prisma.$transaction(
         async (prisma: PrismaClient) => {
-          const { user, isIndividual } = await this.registerWithGoogle(
+          const { user, isIndividual } = await this.registerWithOAuth(
             userData,
             hashedPassword,
             isCompany,
@@ -184,9 +190,9 @@ export class AuthService {
 
       return result;
     } catch (error) {
-      this.logger.error('Error during Google registration', error.stack);
+      this.logger.error(OAUTH_REGISTRATION_ERROR, error.stack);
       throw new InternalServerErrorException(
-        'Error during Google registration',
+        OAUTH_REGISTRATION_ERROR,
         error.message,
       );
     }
@@ -198,11 +204,13 @@ export class AuthService {
     accId: string,
     prisma: PrismaClient,
   ) {
+    const hashedAccId = await this.hashPassword(accId);
+
     return prisma.oauthAccount.create({
       data: {
         userUuid,
         provider,
-        acc: accId,
+        acc: hashedAccId,
       },
     });
   }
@@ -261,19 +269,19 @@ export class AuthService {
     try {
       return await bcrypt.hash(password, SALT);
     } catch (error) {
-      this.logger.error('Error hashing password', error.stack);
-      throw new InternalServerErrorException('Error hashing password');
+      this.logger.error(HASHING_ERROR, error.stack);
+      throw new InternalServerErrorException(HASHING_ERROR, error.stack);
     }
   }
 
-  async login(email: string, password: string): Promise<AuthRepsonse> {
+  async login(email: string, password: string): Promise<AccessTokenResponse> {
     try {
       const user = await this.userService.validateUserPassword(email, password);
       const isIndividual = await this.isIndividual(user.userUuid);
       return this.generateAuthToken(user, isIndividual);
     } catch (error) {
-      this.logger.error('Error during login', error.stack);
-      throw new InternalServerErrorException('Error during login');
+      this.logger.error(LOGIN_ERROR, error.stack);
+      throw new InternalServerErrorException(LOGIN_ERROR);
     }
   }
 
@@ -284,9 +292,10 @@ export class AuthService {
       });
       return !!individual;
     } catch (error) {
-      this.logger.error('Error checking individual status', error.stack);
+      this.logger.error(INDIVIDUAL_CHECK_ERROR, error.stack);
       throw new InternalServerErrorException(
-        'Error checking individual status',
+        INDIVIDUAL_CHECK_ERROR,
+        error.stack
       );
     }
   }

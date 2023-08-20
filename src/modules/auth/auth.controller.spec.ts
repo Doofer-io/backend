@@ -2,13 +2,10 @@ import { ConfigService } from '@nestjs/config';
 import { TestingModule, Test } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import {
-  RegistrationGoogleType,
-  UserType,
-} from './dto/google-registration.dto';
 import { RegistrationType } from './dto/registration.dto';
 import { JwtAuthService } from './jwt/jwt.service';
 import { JwtService } from '@nestjs/jwt';
+import { RegistrationOAuthType, UserType } from './dto/oauth-registration.dto';
 
 describe('AuthController', () => {
   let authController: AuthController;
@@ -123,7 +120,7 @@ describe('AuthController', () => {
         accessToken: 'testToken',
         isIndividual: expect.any(Boolean),
       };
-      jest.spyOn(authService, 'googleLogin').mockResolvedValue(result);
+      jest.spyOn(authService, 'oauthLogin').mockResolvedValue(result);
 
       await authController.googleAuthRedirect(req, res as any);
       expect(res.json).toHaveBeenCalledWith(result);
@@ -132,7 +129,7 @@ describe('AuthController', () => {
 
   describe('registerGoogleUser', () => {
     it('should register a user through Google', async () => {
-      const regGoogleDto: RegistrationGoogleType = {
+      const regGoogleDto: RegistrationOAuthType = {
         userType: UserType.Company,
         token: 'some-token',
         password: 'pass123',
@@ -154,7 +151,7 @@ describe('AuthController', () => {
         isIndividual: expect.any(Boolean),
       };
 
-      jest.spyOn(authService, 'googleRegistration').mockResolvedValue(result);
+      jest.spyOn(authService, 'oauthRegistration').mockResolvedValue(result);
 
       expect(await authController.registerGoogleUser(regGoogleDto)).toBe(
         result,

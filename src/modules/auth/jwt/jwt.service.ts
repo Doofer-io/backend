@@ -2,7 +2,7 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { JWT_ERROR } from '../constants/constant';
-import { JWTPayload, JWTTempPayload } from './interfaces/jwt.interface';
+import { JWTPayload, OAuthPayload } from './interfaces/jwt.interface';
 
 @Injectable()
 export class JwtAuthService {
@@ -19,7 +19,7 @@ export class JwtAuthService {
     );
   }
 
-  createTempAccesstoken(user: JWTTempPayload): { accessToken: string } {
+  createTempAccesstoken(user: OAuthPayload): { accessToken: string } {
     return this.createToken(
       user,
       this.configService.get<string>('JWT_EXPIRES_IN_TEMP'),
@@ -28,7 +28,7 @@ export class JwtAuthService {
   }
 
   private createToken(
-    payload: JWTTempPayload | JWTPayload,
+    payload: OAuthPayload | JWTPayload,
     expiresIn: string,
     secret: string,
   ): { accessToken: string } {
@@ -44,10 +44,10 @@ export class JwtAuthService {
   }
 
   verifyUser(accessToken: string) {
-    try {
-      return this.jwtService.verify(accessToken);
-    } catch (err) {
-      throw new InternalServerErrorException(err);
-    }
+    return this.jwtService.verify(accessToken, {secret:  this.configService.get<string>('JWT_SECRET')});
+  }
+
+  decodeUser(accessToken: string) {
+    return this.jwtService.decode(accessToken);
   }
 }
