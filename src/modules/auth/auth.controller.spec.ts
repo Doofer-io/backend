@@ -20,8 +20,8 @@ describe('AuthController', () => {
           useValue: {
             registration: jest.fn(),
             login: jest.fn(),
-            googleLogin: jest.fn(),
-            googleRegistration: jest.fn(),
+            oauthLogin: jest.fn(),
+            oauthRegistration: jest.fn(),
           },
         },
         JwtAuthService,
@@ -154,6 +154,71 @@ describe('AuthController', () => {
       jest.spyOn(authService, 'oauthRegistration').mockResolvedValue(result);
 
       expect(await authController.registerGoogleUser(regGoogleDto)).toBe(
+        result,
+      );
+    });
+  });
+
+  describe('microsoftAuth', () => {
+    it('should trigger Microsoft authentication', async () => {
+      const result = await authController.microsoftAuth();
+
+      expect(result).toBe('Microsoft Auth');
+    });
+  });
+
+  describe('microsoftAuthRedirect', () => {
+    it('should handle Microsoft auth redirect', async () => {
+      const req = { user: { email: 'test@example.com' } };
+      const res = { json: jest.fn() };
+
+      const result = {
+        success: true,
+        user: {
+          userUuid: expect.any(String),
+          email: req.user.email,
+          avatar: null,
+          firstName: expect.any(String),
+          lastName: expect.any(String),
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        },
+        accessToken: 'testToken',
+        isIndividual: expect.any(Boolean),
+      };
+      jest.spyOn(authService, 'oauthLogin').mockResolvedValue(result);
+
+      await authController.microsoftAuthRedirect(req, res as any);
+      expect(res.json).toHaveBeenCalledWith(result);
+    });
+  });
+
+  describe('registerMicrosoftUser', () => {
+    it('should register a user through Microsoft', async () => {
+      const regMicrosoftDto: RegistrationOAuthType = {
+        userType: UserType.Individual,
+        token: 'some-token',
+        password: 'pass123',
+      };
+
+      const result = {
+        success: true,
+        user: {
+          userUuid: expect.any(String),
+          email: expect.any(String),
+          avatar: null,
+          firstName: expect.any(String),
+          lastName: expect.any(String),
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        },
+        accessToken: expect.any(String),
+        isIndividual: expect.any(Boolean),
+      };
+
+      jest.spyOn(authService, 'oauthRegistration').mockResolvedValue(result);
+
+      expect(await authController.registerMicrosoftUser(regMicrosoftDto)).toBe(
         result,
       );
     });

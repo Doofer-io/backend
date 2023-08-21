@@ -4,6 +4,7 @@ import { AppModule } from '../src/app.module';
 import { INestApplication } from '@nestjs/common';
 import { PrismaService } from '../src/shared/services/prisma.service';
 import { JwtAuthService } from '../src/modules/auth/jwt/jwt.service';
+import passport from 'passport';
 
 describe('AuthService (e2e)', () => {
   let app: INestApplication;
@@ -116,6 +117,7 @@ describe('AuthService (e2e)', () => {
 
     const { accessToken } =
       jwtAuthService.createTempAccesstoken(userDataFromGoogle);
+   
 
     const googleRegistrationDto = {
       token: accessToken,
@@ -124,7 +126,7 @@ describe('AuthService (e2e)', () => {
     };
 
     await request(app.getHttpServer())
-      .post('/auth/google-registration')
+      .post('/auth/google/registration')
       .send(googleRegistrationDto)
       .expect(201)
       .expect(res => {
@@ -146,5 +148,49 @@ describe('AuthService (e2e)', () => {
     // Закрыть соединение с базой данных
     await prismaService.$disconnect();
     await app.close();
+  });
+
+  it('/auth/microsoft (GET) should redirect to Microsoft Auth', () => {
+    return request(app.getHttpServer())
+      .get('/auth/microsoft')
+      .expect(302) // Expected HTTP status code for redirect
+      .expect('Location', /^https:\/\/login\.windows\.net\/common\/oauth2/); // Check for redirection to Microsoft Auth
+  });
+
+  it('/auth/microsoft/callback (GET) should handle Microsoft Auth response', async () => {
+    // Здесь вы можете добавить подмену (mock) ответа от Microsoft, чтобы протестировать этот маршрут
+    // Это может быть более сложно из-за OAuth2
+  });
+  
+
+  it('/auth/microsoft/registration (POST)', async () => {
+    const userDataFromMicrosoft = {
+      provider: 'MICROSOFT',
+      providerId: '6546985426465151',
+      email: 'test2@example.com',
+      firstName: 'Mock',
+      lastName: 'User',
+      picture: null,
+    };
+  
+    const { accessToken } = jwtAuthService.createTempAccesstoken(userDataFromMicrosoft);
+  
+    const microsoftRegistrationDto = {
+      token: accessToken,
+      password: 'MySecureComplexPassword123!',
+      userType: 'individual',
+    };
+  
+    await request(app.getHttpServer())
+      .post('/auth/microsoft/registration')
+      .send(microsoftRegistrationDto)
+      .expect(201)
+      .expect(res => {
+        expect(res.body).toHaveProperty('accessToken');
+        expect(res.body).toHaveProperty('user');
+        expect(res.body.user).toHaveProperty('userUuid');
+        expect(res.body.user).toHaveProperty('email');
+      })
+
   });
 });
