@@ -158,8 +158,32 @@ describe('AuthService (e2e)', () => {
   });
 
   it('/auth/microsoft/callback (GET) should handle Microsoft Auth response', async () => {
-    // Здесь вы можете добавить подмену (mock) ответа от Microsoft, чтобы протестировать этот маршрут
-    // Это может быть более сложно из-за OAuth2
+    const mockUser = {
+      id: 'mock-user-id',
+      email: 'test@example.com',
+    };
+
+    const mockStrategy = {
+      authenticate: () => {
+        return (req, res, next) => {
+          req.user = mockUser;
+          return next();
+        };
+      },
+    };
+
+    // Mock the passport strategy behavior
+    passport.use('azure-ad-openidconnect', mockStrategy);
+
+    const response = await request(app.getHttpServer())
+      .get('/auth/microsoft/callback')
+      .expect(200);
+
+    // Perform additional assertions on the response
+    // For example:
+    expect(response.body).toBeDefined();
+    expect(response.body.id).toBe(mockUser.id);
+    expect(response.body.email).toBe(mockUser.email);
   });
   
 
