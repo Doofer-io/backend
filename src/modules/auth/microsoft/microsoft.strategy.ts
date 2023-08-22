@@ -7,9 +7,14 @@ import { OAUTH_PROVIDER } from '@prisma/client';
 import { JwtAuthService } from '../jwt/jwt.service';
 
 @Injectable()
-export class MicrosoftStrategy extends PassportStrategy(Strategy, 'azure-ad-openidconnect') {
-  constructor(private readonly configService: ConfigService,
-    private readonly jwtAuthService: JwtAuthService) {
+export class MicrosoftStrategy extends PassportStrategy(
+  Strategy,
+  'azure-ad-openidconnect',
+) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly jwtAuthService: JwtAuthService,
+  ) {
     super({
       clientID: configService.get<string>('AZURE_AD_CLIENT_ID'),
       clientSecret: configService.get<string>('AZURE_AD_CLIENT_SECRET'),
@@ -20,13 +25,10 @@ export class MicrosoftStrategy extends PassportStrategy(Strategy, 'azure-ad-open
     });
   }
 
-
-  async validate(
-    profile,
-  ): Promise<OAuthPayload> {
+  async validate(profile): Promise<OAuthPayload> {
     const decodeUser: any = this.jwtAuthService.decodeUser(profile);
 
-    const { sub , email, given_name, family_name } = decodeUser;
+    const { sub, email, given_name, family_name } = decodeUser;
 
     const user: OAuthPayload = {
       provider: OAUTH_PROVIDER.MICROSOFT,

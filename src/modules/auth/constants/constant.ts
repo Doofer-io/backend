@@ -8,5 +8,5 @@ export const ENTITIES_ERROR = 'Failed to create related entities.';
 export const OAUTH_LOGIN_ERROR = 'Error during OAuth login';
 export const OAUTH_REGISTRATION_ERROR = 'Error during OAuth registration';
 export const HASHING_ERROR = 'Error hashing password';
-export const LOGIN_ERROR = 'Error during login'
+export const LOGIN_ERROR = 'Error during login';
 export const INDIVIDUAL_CHECK_ERROR = 'Error checking individual status';

@@ -117,7 +117,6 @@ describe('AuthService (e2e)', () => {
 
     const { accessToken } =
       jwtAuthService.createTempAccesstoken(userDataFromGoogle);
-   
 
     const googleRegistrationDto = {
       token: accessToken,
@@ -185,7 +184,6 @@ describe('AuthService (e2e)', () => {
     expect(response.body.id).toBe(mockUser.id);
     expect(response.body.email).toBe(mockUser.email);
   });
-  
 
   it('/auth/microsoft/registration (POST)', async () => {
     const userDataFromMicrosoft = {
@@ -196,15 +194,17 @@ describe('AuthService (e2e)', () => {
       lastName: 'User',
       picture: null,
     };
-  
-    const { accessToken } = jwtAuthService.createTempAccesstoken(userDataFromMicrosoft);
-  
+
+    const { accessToken } = jwtAuthService.createTempAccesstoken(
+      userDataFromMicrosoft,
+    );
+
     const microsoftRegistrationDto = {
       token: accessToken,
       password: 'MySecureComplexPassword123!',
       userType: 'individual',
     };
-  
+
     await request(app.getHttpServer())
       .post('/auth/microsoft/registration')
       .send(microsoftRegistrationDto)
@@ -214,7 +214,6 @@ describe('AuthService (e2e)', () => {
         expect(res.body).toHaveProperty('user');
         expect(res.body.user).toHaveProperty('userUuid');
         expect(res.body.user).toHaveProperty('email');
-      })
-
+      });
   });
 });
