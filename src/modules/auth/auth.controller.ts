@@ -13,10 +13,12 @@ import { RegistrationRequest, RegistrationType } from './dto/registration.dto';
 import { LoginRequest } from './dto/login.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { RegistrationOAuthRequest, RegistrationOAuthType } from './dto/oauth-registration.dto';
+import { OAUTH_PROVIDER } from '@prisma/client';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
+  private oauthProvider: string;
   constructor(
     private authService: AuthService
   ) {}
@@ -80,6 +82,7 @@ export class AuthController {
     description: 'Redirect to front to pick type of user and set password',
   })
   async registerGoogleUser(@Body() body: RegistrationOAuthType)  {
+    this.oauthProvider = OAUTH_PROVIDER.GOOGLE;
     return this.authService.oauthRegistration(body);
   }
   
@@ -108,6 +111,7 @@ export class AuthController {
       description: 'Redirect to front to pick type of user and set password',
     })
     async registerMicrosoftUser(@Body() body: RegistrationOAuthType) {
+      this.oauthProvider = OAUTH_PROVIDER.MICROSOFT;
       return this.authService.oauthRegistration(body);
   }
 }

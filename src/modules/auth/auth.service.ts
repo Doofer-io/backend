@@ -3,6 +3,7 @@ import {
   Logger,
   InternalServerErrorException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import {
@@ -32,6 +33,7 @@ import { AccessTokenResponse, UserDataResponse } from './interfaces/interfaces';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private oauthProvider: string;
 
   constructor(
     private prisma: PrismaService,
@@ -168,6 +170,9 @@ export class AuthService {
   }
 
   async oauthRegistration(dto: RegistrationOAuthType): Promise<AccessTokenResponse> {
+    if (dto.provider !== this.oauthProvider) {
+    throw new BadRequestException("You can't register user with different third party methods");
+  }
     try {
       const userData = this.jwtAuthService.verifyUser(dto.token);
       const hashedPassword = await this.hashPassword(dto.password);

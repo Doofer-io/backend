@@ -306,7 +306,8 @@ describe('AuthService', () => {
       const dto: RegistrationOAuthType= {
         userType: 'individual' as UserType,
         token: "asdasdasd",
-        password: 'MyPassword123!'
+        password: 'MyPassword123!',
+        provider: 'google',
       };
       const userDataMock = { 
         userUuid: 'string',
@@ -342,7 +343,8 @@ describe('AuthService', () => {
       const dto: RegistrationOAuthType= {
         userType: 'individual' as UserType,
         token: "asdasdasd",
-        password: 'MyPassword123!'
+        password: 'MyPassword123!',
+        provider: 'google'
       };
   
       jest.spyOn(jwtAuthService, 'verifyUser').mockReturnValue({});
