@@ -7,8 +7,8 @@ import { User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
 import { CompanyRegistrationDto } from './dto/registration.dto';
-import { InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
-import { IndividualRegistrationOAuthDto, RegistrationOAuthType, UserType } from './dto/oauth-registration.dto';
+import { InternalServerErrorException } from '@nestjs/common';
+import { RegistrationOAuthType, UserType } from './dto/oauth-registration.dto';
 
 jest.mock('bcrypt', () => ({
   hash: jest.fn(),
@@ -44,7 +44,8 @@ describe('AuthService', () => {
           provide: JwtAuthService,
           useValue: {
             createAccessToken: jest.fn(),
-            verifyUser: jest.fn()
+            verifyUser: jest.fn(),
+            createTempAccesstoken: jest.fn(),
           },
         },
         {
@@ -73,7 +74,6 @@ describe('AuthService', () => {
     userService = module.get<UserService>(UserService);
     jwtAuthService = module.get<JwtAuthService>(JwtAuthService);
     prismaService = module.get<PrismaService>(PrismaService);
-
   });
 
   afterEach(() => {
@@ -137,7 +137,6 @@ describe('AuthService', () => {
       expect(result).toEqual(hashedPassword);
     });
 
-
     it('should register a user and execute transaction', async () => {
       const userMock: User = {
         userUuid: 'testUuid',
@@ -152,6 +151,7 @@ describe('AuthService', () => {
         accessToken: 'testToken',
       };
 
+      // eslint-disable-next-line no-shadow
       const registrationDto = {
         firstName: 'test',
         lastName: 'test',
@@ -161,11 +161,13 @@ describe('AuthService', () => {
       };
 
       jest.spyOn(userService, 'createUser').mockResolvedValue(userMock);
-      jest.spyOn(jwtAuthService, 'createAccessToken').mockReturnValue(tokenMock);
+      jest
+        .spyOn(jwtAuthService, 'createAccessToken')
+        .mockReturnValue(tokenMock);
 
       // Mocking the transaction using Prisma mock
       const transactionMock = jest.spyOn(prismaService, '$transaction');
-      transactionMock.mockImplementation(async (callback) => {
+      transactionMock.mockImplementation(async callback => {
         const prismaInstance = new PrismaService(); // Create a new instance for each transaction
         const result = await callback(prismaInstance); // Execute the transaction logic
         // You can also further mock interactions with prismaInstance here
@@ -184,8 +186,11 @@ describe('AuthService', () => {
     });
 
     it('should throw InternalServerErrorException when there is an error during registration', async () => {
-      jest.spyOn(userService, 'createUser').mockRejectedValue(new InternalServerErrorException());
+      jest
+        .spyOn(userService, 'createUser')
+        .mockRejectedValue(new InternalServerErrorException());
 
+      // eslint-disable-next-line no-shadow
       const registrationDto = {
         firstName: 'test',
         lastName: 'test',
@@ -198,7 +203,6 @@ describe('AuthService', () => {
         InternalServerErrorException,
       );
     });
-
 
     // always got error
     it('should throw InternalServerErrorException when there is an error during entity creation', async () => {
@@ -260,24 +264,26 @@ describe('AuthService', () => {
     it('should throw UnauthorizedException when user login fails', async () => {
       const email = 'test@example.com';
       const password = 'MySecureComplexPassword123!';
-      
+
       // Mocking userService.validateUserPassword to reject (simulate failed login)
-      jest.spyOn(userService, 'validateUserPassword').mockRejectedValue(new InternalServerErrorException());
-  
+      jest
+        .spyOn(userService, 'validateUserPassword')
+        .mockRejectedValue(new InternalServerErrorException());
+
       await expect(authService.login(email, password)).rejects.toThrow(
         InternalServerErrorException,
       );
     });
-  
+
     it('should throw InternalServerErrorException when there is an error during login', async () => {
       const email = 'test@example.com';
       const password = 'MySecureComplexPassword123!';
-  
+
       // Mocking userService.validateUserPassword to throw an error
       jest
         .spyOn(userService, 'validateUserPassword')
         .mockRejectedValue(new InternalServerErrorException());
-  
+
       await expect(authService.login(email, password)).rejects.toThrow(
         InternalServerErrorException,
       );
@@ -296,31 +302,29 @@ describe('AuthService', () => {
         InternalServerErrorException,
       );
     });
-
-    
   });
-
 
   describe('oauthlodin', () => {
     it('should successfully perform OAuth registration', async () => {
-      const dto: RegistrationOAuthType= {
+      const dto: RegistrationOAuthType = {
         userType: 'individual' as UserType,
-        token: "asdasdasd",
-        password: 'MyPassword123!'
+        token: 'asdasdasd',
+        password: 'MyPassword123!',
       };
-      const userDataMock = { 
+      const userDataMock = {
         userUuid: 'string',
         email: 'string',
         avatar: 'string',
         firstName: 'string',
         lastName: 'string',
-        createdAt:  new Date(),
-        updatedAt:  new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
-  
-  
+
       jest.spyOn(jwtAuthService, 'verifyUser').mockReturnValue(userDataMock);
-      jest.spyOn(authService, 'hashPassword').mockResolvedValue('hashedPassword');
+      jest
+        .spyOn(authService, 'hashPassword')
+        .mockResolvedValue('hashedPassword');
       jest.spyOn(authService, 'registerWithOAuth').mockResolvedValue({
         user: userDataMock,
         isIndividual: true,
@@ -330,64 +334,78 @@ describe('AuthService', () => {
         accessToken: 'mockAccessToken',
         isIndividual: true,
       });
-  
+
       const result = await authService.oauthRegistration(dto);
-  
+
       expect(result).toHaveProperty('user');
       expect(result).toHaveProperty('accessToken');
-
     });
-  
+
     it('should throw InternalServerErrorException when there is an error during OAuth registration', async () => {
-      const dto: RegistrationOAuthType= {
+      const dto: RegistrationOAuthType = {
         userType: 'individual' as UserType,
-        token: "asdasdasd",
-        password: 'MyPassword123!'
+        token: 'myToken',
+        password: 'MyPassword123!',
       };
-  
+
+      // Мокаем вызовы
       jest.spyOn(jwtAuthService, 'verifyUser').mockReturnValue({});
-      jest.spyOn(authService, 'hashPassword').mockResolvedValue('hashedPassword');
-      jest.spyOn(authService, 'registerWithOAuth').mockRejectedValue(new Error());
-  
+      jest
+        .spyOn(authService, 'hashPassword')
+        .mockResolvedValue('hashedPassword');
+      jest.spyOn(authService, 'registerWithOAuth').mockImplementation(() => {
+        console.log('Mocked registerWithOAuth is called');
+        return Promise.reject(new Error('Mocked error'));
+      });
+
+      // Ожидаем, что функция выбросит исключение
       await expect(authService.oauthRegistration(dto)).rejects.toThrow(
         InternalServerErrorException,
       );
     });
   });
-  
-  
+
   describe('createOAuthAccount', () => {
     it('should create an OAuth account successfully', async () => {
-  
       const userUuid = 'testUserUuid';
       const provider = 'MICROSOFT';
       const accId = '1234567';
-  
-    
+
       jest.spyOn(prismaService.oauthAccount, 'create').mockResolvedValue({
         oauthAccountUuid: 'mockedUuid',
         userUuid,
         provider: 'MICROSOFT',
         acc: 'hashedAccId',
       });
-  
-      const result = await authService.createOAuthAccount(userUuid, provider, accId, prismaService);
-  
+
+      const result = await authService.createOAuthAccount(
+        userUuid,
+        provider,
+        accId,
+        prismaService,
+      );
+
       expect(result).toHaveProperty('oauthAccountUuid');
       expect(result).toHaveProperty('userUuid', userUuid);
       expect(result).toHaveProperty('provider', provider);
     });
-  
+
     it('should throw InternalServerErrorException when there is an error during OAuth account creation', async () => {
-   
       const userUuid = 'testUserUuid';
       const provider = 'MICROSOFT';
       const accId = '1234567';
-      jest.spyOn(prismaService.oauthAccount, 'create').mockRejectedValue(new InternalServerErrorException());
-  
-      await expect(authService.createOAuthAccount(userUuid, provider, accId, prismaService)).rejects.toThrow(
-        InternalServerErrorException,
-      );
+      jest
+        .spyOn(prismaService.oauthAccount, 'create')
+        .mockRejectedValue(new InternalServerErrorException());
+
+      await expect(
+        authService.createOAuthAccount(
+          userUuid,
+          provider,
+          accId,
+          prismaService,
+        ),
+      ).rejects.toThrow(InternalServerErrorException);
     });
   });
 });

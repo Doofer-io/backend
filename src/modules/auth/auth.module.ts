@@ -16,7 +16,7 @@ import { MicrosoftStrategy } from './microsoft/microsoft.strategy';
     UserService,
     JwtAuthService,
     GoogleStrategy,
-    MicrosoftStrategy,
+    //MicrosoftStrategy,
   ],
   controllers: [AuthController],
   exports: [AuthService],

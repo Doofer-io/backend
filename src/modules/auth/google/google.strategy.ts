@@ -12,16 +12,13 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       clientID: configService.get<string>('CLIENT_ID'),
       clientSecret: configService.get<string>('CLIENT_SECRET'),
       callbackURL: configService.get<string>('API_URL'),
-      scope: ['email', 'profile'],
+      scope: ['openid', 'email', 'profile'],
     });
   }
 
-  async validate(
-    profile,
-    done,
-  ): Promise<void> {
+  async validate(profile, done): Promise<void> {
     const { id, name, emails, photos } = profile;
-
+    console.log('profile', profile);
     const user: OAuthPayload = {
       provider: OAUTH_PROVIDER.GOOGLE,
       providerId: id,

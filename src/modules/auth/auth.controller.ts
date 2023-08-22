@@ -12,14 +12,15 @@ import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RegistrationRequest, RegistrationType } from './dto/registration.dto';
 import { LoginRequest } from './dto/login.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { RegistrationOAuthRequest, RegistrationOAuthType } from './dto/oauth-registration.dto';
+import {
+  RegistrationOAuthRequest,
+  RegistrationOAuthType,
+} from './dto/oauth-registration.dto';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private authService: AuthService
-  ) {}
+  constructor(private authService: AuthService) {}
 
   @Post('registration')
   @ApiOperation({
@@ -66,6 +67,7 @@ export class AuthController {
   })
   @UseGuards(AuthGuard('google'))
   async googleAuthRedirect(@Req() req, @Res() res) {
+    console.log('req', req.user);
     const result = await this.authService.oauthLogin(req.user, res);
     return res.json(result);
   }
@@ -79,36 +81,35 @@ export class AuthController {
     status: 300,
     description: 'Redirect to front to pick type of user and set password',
   })
-  async registerGoogleUser(@Body() body: RegistrationOAuthType)  {
+  async registerGoogleUser(@Body() body: RegistrationOAuthType) {
     return this.authService.oauthRegistration(body);
   }
-  
-    @Get('microsoft')
-    @ApiOperation({ summary: 'Microsoft auth' })
-    @ApiBody({ type: RegistrationOAuthRequest })
-    @UseGuards(AuthGuard('azure-ad-openidconnect'))
-    async microsoftAuth() {
-      return 'Microsoft Auth';
-    }
-  
-    @Get('microsoft/callback')
+
+  @Get('microsoft')
+  @ApiOperation({ summary: 'Microsoft auth' })
+  @ApiBody({ type: RegistrationOAuthRequest })
+  @UseGuards(AuthGuard('azure-ad-openidconnect'))
+  async microsoftAuth() {
+    return 'Microsoft Auth';
+  }
+
+  @Get('microsoft/callback')
   @UseGuards(AuthGuard('azure-ad-openidconnect'))
   async microsoftAuthRedirect(@Req() req, @Res() res) {
     const result = await this.authService.oauthLogin(req.user, res);
     return res.json(result);
   }
-  
-    @Post('microsoft/registration')
-    @ApiOperation({
-      summary: 'Microsoft registration endpoint',
-    })
-    @ApiBody({ type: RegistrationOAuthRequest }) 
-    @ApiResponse({
-      status: 300,
-      description: 'Redirect to front to pick type of user and set password',
-    })
-    async registerMicrosoftUser(@Body() body: RegistrationOAuthType) {
-      return this.authService.oauthRegistration(body);
+
+  @Post('microsoft/registration')
+  @ApiOperation({
+    summary: 'Microsoft registration endpoint',
+  })
+  @ApiBody({ type: RegistrationOAuthRequest })
+  @ApiResponse({
+    status: 300,
+    description: 'Redirect to front to pick type of user and set password',
+  })
+  async registerMicrosoftUser(@Body() body: RegistrationOAuthType) {
+    return this.authService.oauthRegistration(body);
   }
 }
-

@@ -6,14 +6,13 @@ import { AuthModule } from './modules/auth/auth.module';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 
-
 @Module({
   imports: [
-    PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_SECRET,
-      signOptions: { expiresIn: '1h' }, // Срок действия токена 
-    }),
+    // PassportModule,
+    // JwtModule.register({
+    //   secret: process.env.JWT_SECRET,
+    //   signOptions: { expiresIn: '1h' }, // Срок действия токена
+    // }),
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema,
