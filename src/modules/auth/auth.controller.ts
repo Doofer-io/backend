@@ -12,13 +12,15 @@ import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RegistrationRequest, RegistrationType } from './dto/registration.dto';
 import { LoginRequest } from './dto/login.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { RegistrationOAuthRequest, RegistrationOAuthType } from './dto/oauth-registration.dto';
+import {
+  RegistrationOAuthRequest,
+  RegistrationOAuthType,
+} from './dto/oauth-registration.dto';
 import { OAUTH_PROVIDER } from '@prisma/client';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  private oauthProvider: string;
   constructor(
     private authService: AuthService
   ) {}
@@ -82,19 +84,19 @@ export class AuthController {
     description: 'Redirect to front to pick type of user and set password',
   })
   async registerGoogleUser(@Body() body: RegistrationOAuthType)  {
-    this.oauthProvider = OAUTH_PROVIDER.GOOGLE;
-    return this.authService.oauthRegistration(body);
+    const nativeProvider = OAUTH_PROVIDER.GOOGLE;
+    return this.authService.oauthRegistration(body, nativeProvider);
   }
-  
-    @Get('microsoft')
-    @ApiOperation({ summary: 'Microsoft auth' })
-    @ApiBody({ type: RegistrationOAuthRequest })
-    @UseGuards(AuthGuard('azure-ad-openidconnect'))
-    async microsoftAuth() {
-      return 'Microsoft Auth';
-    }
-  
-    @Get('microsoft/callback')
+
+  @Get('microsoft')
+  @ApiOperation({ summary: 'Microsoft auth' })
+  @ApiBody({ type: RegistrationOAuthRequest })
+  @UseGuards(AuthGuard('azure-ad-openidconnect'))
+  async microsoftAuth() {
+    return 'Microsoft Auth';
+  }
+
+  @Get('microsoft/callback')
   @UseGuards(AuthGuard('azure-ad-openidconnect'))
   async microsoftAuthRedirect(@Req() req, @Res() res) {
     const result = await this.authService.oauthLogin(req.user, res);
@@ -111,8 +113,7 @@ export class AuthController {
       description: 'Redirect to front to pick type of user and set password',
     })
     async registerMicrosoftUser(@Body() body: RegistrationOAuthType) {
-      this.oauthProvider = OAUTH_PROVIDER.MICROSOFT;
-      return this.authService.oauthRegistration(body);
+      const nativeProvider = OAUTH_PROVIDER.GOOGLE;
+      return this.authService.oauthRegistration(body, nativeProvider);
   }
 }
-

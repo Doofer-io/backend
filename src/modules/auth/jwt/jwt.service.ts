@@ -44,7 +44,9 @@ export class JwtAuthService {
   }
 
   verifyUser(accessToken: string) {
-    return this.jwtService.verify(accessToken, {secret:  this.configService.get<string>('JWT_SECRET')});
+    return this.jwtService.verify(accessToken, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+    });
   }
 
   decodeUser(accessToken: string) {

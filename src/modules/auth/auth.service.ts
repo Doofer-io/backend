@@ -16,6 +16,7 @@ import {
   HASHING_ERROR,
   INDIVIDUAL_CHECK_ERROR,
   LOGIN_ERROR,
+  OAUTH_CONFLICT_ERROR,
   OAUTH_LOGIN_ERROR,
   OAUTH_REGISTRATION_ERROR,
   REGISTER_ERROR,
@@ -27,7 +28,10 @@ import { OAUTH_PROVIDER, PrismaClient, User } from '@prisma/client';
 import { OAuthPayload } from './jwt/interfaces/jwt.interface';
 import { ConfigService } from '@nestjs/config';
 import { INVALID_DATA } from '../user/constants/constant';
-import { CompanyRegistrationOAuthDto, RegistrationOAuthType } from './dto/oauth-registration.dto';
+import {
+  CompanyRegistrationOAuthDto,
+  RegistrationOAuthType,
+} from './dto/oauth-registration.dto';
 import { AccessTokenResponse, UserDataResponse } from './interfaces/interfaces';
 
 @Injectable()
@@ -69,10 +73,7 @@ export class AuthService {
     }
   }
 
-  async oauthLogin(
-    dto: OAuthPayload,
-    res,
-  ): Promise<AccessTokenResponse> {
+  async oauthLogin(dto: OAuthPayload, res): Promise<AccessTokenResponse> {
     try {
       const user = await this.prisma.user.findUnique({
         where: { email: dto.email },
@@ -91,8 +92,11 @@ export class AuthService {
             this.prisma,
           );
         }
-        const isPasswordsValid = await this.userService.isPasswordValid(dto.providerId, oAuthAccount.acc);
-        
+        const isPasswordsValid = await this.userService.isPasswordValid(
+          dto.providerId,
+          oAuthAccount.acc,
+        );
+
         if (!isPasswordsValid || !oAuthAccount) {
           throw new UnauthorizedException(INVALID_DATA);
         }
@@ -115,10 +119,7 @@ export class AuthService {
       );
     } catch (error) {
       this.logger.error(OAUTH_LOGIN_ERROR, error.stack);
-      throw new InternalServerErrorException(
-        OAUTH_LOGIN_ERROR,
-        error.stack,
-      );
+      throw new InternalServerErrorException(OAUTH_LOGIN_ERROR, error.stack);
     }
   }
 
@@ -165,19 +166,21 @@ export class AuthService {
     } else {
       await this.createIndividual(user.userUuid, prisma);
     }
-
     return { user, isIndividual };
   }
 
-  async oauthRegistration(dto: RegistrationOAuthType): Promise<AccessTokenResponse> {
-    if (dto.provider !== this.oauthProvider) {
-    throw new BadRequestException("You can't register user with different third party methods");
-  }
+  async oauthRegistration(dto: RegistrationOAuthType, nativeProvider: OAUTH_PROVIDER): Promise<AccessTokenResponse> {
     try {
       const userData = this.jwtAuthService.verifyUser(dto.token);
+
+      if (userData.provider !== nativeProvider) {
+        throw new BadRequestException(OAUTH_CONFLICT_ERROR);
+      }
+      
       const hashedPassword = await this.hashPassword(dto.password);
       const isCompany = COMPANY_NAME in dto;
-      const companyName = (dto as CompanyRegistrationOAuthDto).companyName || null;
+      const companyName =
+        (dto as CompanyRegistrationOAuthDto).companyName || null;
 
       const result = await this.prisma.$transaction(
         async (prisma: PrismaClient) => {
@@ -300,7 +303,7 @@ export class AuthService {
       this.logger.error(INDIVIDUAL_CHECK_ERROR, error.stack);
       throw new InternalServerErrorException(
         INDIVIDUAL_CHECK_ERROR,
-        error.stack
+        error.stack,
       );
     }
   }

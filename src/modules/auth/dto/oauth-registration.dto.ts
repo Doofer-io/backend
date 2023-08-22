@@ -43,7 +43,6 @@ export class IndividualRegistrationOAuthDto {
     },
   )
   password: string;
-  provider: string;
 }
 
 export class CompanyRegistrationOAuthDto extends IndividualRegistrationOAuthDto {
@@ -56,7 +55,6 @@ export class CompanyRegistrationOAuthDto extends IndividualRegistrationOAuthDto 
   @IsNotEmpty()
   @MinLength(2)
   readonly companyName: string;
-  provider: string;
 }
 
 export type RegistrationOAuthType =

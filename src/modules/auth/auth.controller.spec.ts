@@ -5,7 +5,7 @@ import { AuthService } from './auth.service';
 import { RegistrationType } from './dto/registration.dto';
 import { JwtAuthService } from './jwt/jwt.service';
 import { JwtService } from '@nestjs/jwt';
-import { RegistrationOAuthType, UserType } from './dto/oauth-registration.dto';
+import { CompanyRegistrationOAuthDto, RegistrationOAuthType, UserType } from './dto/oauth-registration.dto';
 
 describe('AuthController', () => {
   let authController: AuthController;
