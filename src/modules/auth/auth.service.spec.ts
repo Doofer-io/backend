@@ -7,13 +7,11 @@ import { ConfigService } from '@nestjs/config';
 import {
   ConflictException,
   InternalServerErrorException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { RegistrationType } from './dto/registration.dto';
 import { USER_UNIQUE } from '../user/constants/constant';
 import { OAuthPayload } from './jwt/interfaces/jwt.interface';
 import { RegistrationOAuthType, UserType } from './dto/oauth-registration.dto';
-import { find } from 'rxjs';
 
 jest.mock('../user/user.service');
 
