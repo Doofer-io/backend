@@ -26,7 +26,6 @@ export class MicrosoftStrategy extends PassportStrategy(
   }
 
   async validate(profile): Promise<OAuthPayload> {
-    console.log('profilemicrosoft', profile);
     const decodeUser: any = this.jwtAuthService.decodeUser(profile);
 
     const { sub, email, given_name, family_name } = decodeUser;

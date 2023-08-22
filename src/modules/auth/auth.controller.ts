@@ -67,7 +67,6 @@ export class AuthController {
   })
   @UseGuards(AuthGuard('google'))
   async googleAuthRedirect(@Req() req, @Res() res) {
-    console.log('req', req.user);
     const result = await this.authService.oauthLogin(req.user, res);
     return res.json(result);
   }
