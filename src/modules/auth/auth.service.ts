@@ -163,7 +163,6 @@ export class AuthService {
     } else {
       await this.createIndividual(user.userUuid, prisma);
     }
-    console.log('helo i am here');
     return { user, isIndividual };
   }
 
