@@ -34,7 +34,7 @@ import {
   RegistrationOAuthType,
 } from './dto/oauth-registration.dto';
 import { AccessTokenResponse, UserDataResponse } from './interfaces/interfaces';
-import { decrypt, encrypt } from 'src/shared/utils/encryption';
+import { decrypt, encrypt } from '../../shared/utils/encryption';
 
 @Injectable()
 export class AuthService {
