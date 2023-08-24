@@ -10,4 +10,6 @@ export const OAUTH_REGISTRATION_ERROR = 'Error during OAuth registration';
 export const HASHING_ERROR = 'Error hashing password';
 export const LOGIN_ERROR = 'Error during login';
 export const INDIVIDUAL_CHECK_ERROR = 'Error checking individual status';
-export const OAUTH_CONFLICT_ERROR ="You can't register user with different third party methods";
+export const OAUTH_CONFLICT_ERROR =
+  "You can't register user with different third party methods";
+export const ACCESS_TOKEN = 'authToken';

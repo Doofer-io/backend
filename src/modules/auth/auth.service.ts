@@ -12,6 +12,7 @@ import {
 } from './dto/registration.dto';
 import { UserService } from '../user/user.service';
 import {
+  ACCESS_TOKEN,
   COMPANY_NAME,
   HASHING_ERROR,
   INDIVIDUAL_CHECK_ERROR,
@@ -33,6 +34,7 @@ import {
   RegistrationOAuthType,
 } from './dto/oauth-registration.dto';
 import { AccessTokenResponse, UserDataResponse } from './interfaces/interfaces';
+import { decrypt, encrypt } from 'src/shared/utils/encryption';
 
 @Injectable()
 export class AuthService {
@@ -112,11 +114,17 @@ export class AuthService {
       }
 
       const jwt = this.jwtAuthService.createTempAccesstoken(dto);
-      res.redirect(
-        `${this.configService.get<string>('FRONT_URL')}/?token=${
-          jwt.accessToken
-        }`,
+
+      const encryptedToken = await encrypt(
+        jwt.accessToken,
+        this.configService.get<string>('ENCRYPT_KEY'),
       );
+
+      res.cookie(ACCESS_TOKEN, encryptedToken, {
+        httpOnly: true,
+      });
+
+      res.redirect(`${this.configService.get<string>('FRONT_URL')}`);
     } catch (error) {
       this.logger.error(OAUTH_LOGIN_ERROR, error.stack);
       throw new InternalServerErrorException(OAUTH_LOGIN_ERROR, error.stack);
@@ -169,14 +177,22 @@ export class AuthService {
     return { user, isIndividual };
   }
 
-  async oauthRegistration(dto: RegistrationOAuthType, nativeProvider: OAUTH_PROVIDER): Promise<AccessTokenResponse> {
+  async oauthRegistration(
+    dto: RegistrationOAuthType,
+    nativeProvider: OAUTH_PROVIDER,
+  ): Promise<AccessTokenResponse> {
     try {
-      const userData = this.jwtAuthService.verifyUser(dto.token);
+      const decryptToken = await decrypt(
+        dto.token,
+        this.configService.get<string>('ENCRYPT_KEY'),
+      );
+
+      const userData = this.jwtAuthService.verifyUser(decryptToken);
 
       if (userData.provider !== nativeProvider) {
         throw new BadRequestException(OAUTH_CONFLICT_ERROR);
       }
-      
+
       const hashedPassword = await this.hashPassword(dto.password);
       const isCompany = COMPANY_NAME in dto;
       const companyName =

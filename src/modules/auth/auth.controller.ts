@@ -21,9 +21,7 @@ import { OAUTH_PROVIDER } from '@prisma/client';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private authService: AuthService
-  ) {}
+  constructor(private authService: AuthService) {}
 
   @Post('registration')
   @ApiOperation({
@@ -83,7 +81,7 @@ export class AuthController {
     status: 300,
     description: 'Redirect to front to pick type of user and set password',
   })
-  async registerGoogleUser(@Body() body: RegistrationOAuthType)  {
+  async registerGoogleUser(@Body() body: RegistrationOAuthType) {
     const nativeProvider = OAUTH_PROVIDER.GOOGLE;
     return this.authService.oauthRegistration(body, nativeProvider);
   }
@@ -102,18 +100,18 @@ export class AuthController {
     const result = await this.authService.oauthLogin(req.user, res);
     return res.json(result);
   }
-  
-    @Post('microsoft/registration')
-    @ApiOperation({
-      summary: 'Microsoft registration endpoint',
-    })
-    @ApiBody({ type: RegistrationOAuthRequest }) 
-    @ApiResponse({
-      status: 300,
-      description: 'Redirect to front to pick type of user and set password',
-    })
-    async registerMicrosoftUser(@Body() body: RegistrationOAuthType) {
-      const nativeProvider = OAUTH_PROVIDER.GOOGLE;
-      return this.authService.oauthRegistration(body, nativeProvider);
+
+  @Post('microsoft/registration')
+  @ApiOperation({
+    summary: 'Microsoft registration endpoint',
+  })
+  @ApiBody({ type: RegistrationOAuthRequest })
+  @ApiResponse({
+    status: 300,
+    description: 'Redirect to front to pick type of user and set password',
+  })
+  async registerMicrosoftUser(@Body() body: RegistrationOAuthType) {
+    const nativeProvider = OAUTH_PROVIDER.MICROSOFT;
+    return this.authService.oauthRegistration(body, nativeProvider);
   }
 }

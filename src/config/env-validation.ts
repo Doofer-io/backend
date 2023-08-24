@@ -19,4 +19,6 @@ export const validationSchema = Joi.object({
   AZURE_AD_CLIENT_SECRET: Joi.string(),
   AZURE_AD_IDENTITY_METADATA: Joi.string(),
   AZURE_AD_REDIRECT_URI: Joi.string(),
+  // env for hash jwt token
+  ENCRYPT_KEY: Joi.string().required(),
 });
