@@ -204,11 +204,6 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
       const mockToken = 'oauthToken';
-      const mockAccessTokenResponse: AccessTokenResponse = {
-        user: mockUser,
-        accessToken: mockToken,
-        isIndividual: true,
-      };
 
       // Замокать вызовы к зависимостям
       jest.mock('../../shared/utils/encryption', () => ({

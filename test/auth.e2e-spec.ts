@@ -220,21 +220,19 @@ describe('AuthService (e2e)', () => {
     };
 
     // Mock the oauthLogin method of authService
-    const oauthLoginSpy = jest
-      .spyOn(authService, 'oauthLogin')
-      .mockImplementation(async () => ({
-        user: {
-          userUuid: mockUser.userUuid,
-          email: mockUser.email,
-          avatar: 'asdasd',
-          firstName: 'asdasd',
-          lastName: 'asdasd',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        accessToken: 'mockAccessToken',
-        isIndividual: true,
-      }));
+    jest.spyOn(authService, 'oauthLogin').mockImplementation(async () => ({
+      user: {
+        userUuid: mockUser.userUuid,
+        email: mockUser.email,
+        avatar: 'asdasd',
+        firstName: 'asdasd',
+        lastName: 'asdasd',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      accessToken: 'mockAccessToken',
+      isIndividual: true,
+    }));
 
     // Mock the AuthGuard
     jest.mock('passport', () => ({
