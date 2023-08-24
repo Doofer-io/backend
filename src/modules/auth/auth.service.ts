@@ -39,7 +39,6 @@ import { decrypt, encrypt } from '../../shared/utils/encryption';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private oauthProvider: string;
 
   constructor(
     private prisma: PrismaService,
