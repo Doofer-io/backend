@@ -14,4 +14,11 @@ export const validationSchema = Joi.object({
   CLIENT_SECRET: Joi.string(),
   API_URL: Joi.string(),
   FRONT_URL: Joi.string(),
+  // env for microsofte
+  AZURE_AD_CLIENT_ID: Joi.string(),
+  AZURE_AD_CLIENT_SECRET: Joi.string(),
+  AZURE_AD_IDENTITY_METADATA: Joi.string(),
+  AZURE_AD_REDIRECT_URI: Joi.string(),
+  // env for hash jwt token
+  ENCRYPT_KEY: Joi.string().required(),
 });

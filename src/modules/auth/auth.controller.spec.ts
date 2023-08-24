@@ -2,13 +2,10 @@ import { ConfigService } from '@nestjs/config';
 import { TestingModule, Test } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import {
-  RegistrationGoogleType,
-  UserType,
-} from './dto/google-registration.dto';
 import { RegistrationType } from './dto/registration.dto';
 import { JwtAuthService } from './jwt/jwt.service';
 import { JwtService } from '@nestjs/jwt';
+import { RegistrationOAuthType, UserType } from './dto/oauth-registration.dto';
 
 describe('AuthController', () => {
   let authController: AuthController;
@@ -23,8 +20,8 @@ describe('AuthController', () => {
           useValue: {
             registration: jest.fn(),
             login: jest.fn(),
-            googleLogin: jest.fn(),
-            googleRegistration: jest.fn(),
+            oauthLogin: jest.fn(),
+            oauthRegistration: jest.fn(),
           },
         },
         JwtAuthService,
@@ -123,7 +120,7 @@ describe('AuthController', () => {
         accessToken: 'testToken',
         isIndividual: expect.any(Boolean),
       };
-      jest.spyOn(authService, 'googleLogin').mockResolvedValue(result);
+      jest.spyOn(authService, 'oauthLogin').mockResolvedValue(result);
 
       await authController.googleAuthRedirect(req, res as any);
       expect(res.json).toHaveBeenCalledWith(result);
@@ -132,7 +129,7 @@ describe('AuthController', () => {
 
   describe('registerGoogleUser', () => {
     it('should register a user through Google', async () => {
-      const regGoogleDto: RegistrationGoogleType = {
+      const regGoogleDto: RegistrationOAuthType = {
         userType: UserType.Company,
         token: 'some-token',
         password: 'pass123',
@@ -154,9 +151,74 @@ describe('AuthController', () => {
         isIndividual: expect.any(Boolean),
       };
 
-      jest.spyOn(authService, 'googleRegistration').mockResolvedValue(result);
+      jest.spyOn(authService, 'oauthRegistration').mockResolvedValue(result);
 
       expect(await authController.registerGoogleUser(regGoogleDto)).toBe(
+        result,
+      );
+    });
+  });
+
+  describe('microsoftAuth', () => {
+    it('should trigger Microsoft authentication', async () => {
+      const result = await authController.microsoftAuth();
+
+      expect(result).toBe('Microsoft Auth');
+    });
+  });
+
+  describe('microsoftAuthRedirect', () => {
+    it('should handle Microsoft auth redirect', async () => {
+      const req = { user: { email: 'test@example.com' } };
+      const res = { json: jest.fn() };
+
+      const result = {
+        success: true,
+        user: {
+          userUuid: expect.any(String),
+          email: req.user.email,
+          avatar: null,
+          firstName: expect.any(String),
+          lastName: expect.any(String),
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        },
+        accessToken: 'testToken',
+        isIndividual: expect.any(Boolean),
+      };
+      jest.spyOn(authService, 'oauthLogin').mockResolvedValue(result);
+
+      await authController.microsoftAuthRedirect(req, res as any);
+      expect(res.json).toHaveBeenCalledWith(result);
+    });
+  });
+
+  describe('registerMicrosoftUser', () => {
+    it('should register a user through Microsoft', async () => {
+      const regMicrosoftDto: RegistrationOAuthType = {
+        userType: UserType.Individual,
+        token: 'some-token',
+        password: 'pass123',
+      };
+
+      const result = {
+        success: true,
+        user: {
+          userUuid: expect.any(String),
+          email: expect.any(String),
+          avatar: null,
+          firstName: expect.any(String),
+          lastName: expect.any(String),
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        },
+        accessToken: expect.any(String),
+        isIndividual: expect.any(Boolean),
+      };
+
+      jest.spyOn(authService, 'oauthRegistration').mockResolvedValue(result);
+
+      expect(await authController.registerMicrosoftUser(regMicrosoftDto)).toBe(
         result,
       );
     });

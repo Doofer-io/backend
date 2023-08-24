@@ -12,21 +12,16 @@ import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RegistrationRequest, RegistrationType } from './dto/registration.dto';
 import { LoginRequest } from './dto/login.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { JwtAuthService } from './jwt/jwt.service';
-import { ConfigService } from '@nestjs/config';
 import {
-  RegistrationGoogleRequest,
-  RegistrationGoogleType,
-} from './dto/google-registration.dto';
+  RegistrationOAuthRequest,
+  RegistrationOAuthType,
+} from './dto/oauth-registration.dto';
+import { OAUTH_PROVIDER } from '@prisma/client';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private authService: AuthService,
-    private jwtAuthService: JwtAuthService,
-    private configService: ConfigService,
-  ) {}
+  constructor(private authService: AuthService) {}
 
   @Post('registration')
   @ApiOperation({
@@ -73,20 +68,50 @@ export class AuthController {
   })
   @UseGuards(AuthGuard('google'))
   async googleAuthRedirect(@Req() req, @Res() res) {
-    const result = await this.authService.googleLogin(req.user, req, res);
+    const result = await this.authService.oauthLogin(req.user, res);
     return res.json(result);
   }
 
-  @Post('google-registration')
+  @Post('google/registration')
   @ApiOperation({
     summary: 'Google auth callback that return data from google',
   })
-  @ApiBody({ type: RegistrationGoogleRequest })
+  @ApiBody({ type: RegistrationOAuthRequest })
   @ApiResponse({
     status: 300,
     description: 'Redirect to front to pick type of user and set password',
   })
-  async registerGoogleUser(@Body() body: RegistrationGoogleType): Promise<any> {
-    return this.authService.googleRegistration(body);
+  async registerGoogleUser(@Body() body: RegistrationOAuthType) {
+    const nativeProvider = OAUTH_PROVIDER.GOOGLE;
+    return this.authService.oauthRegistration(body, nativeProvider);
+  }
+
+  @Get('microsoft')
+  @ApiOperation({ summary: 'Microsoft auth' })
+  @ApiBody({ type: RegistrationOAuthRequest })
+  @UseGuards(AuthGuard('azure-ad-openidconnect'))
+  async microsoftAuth() {
+    return 'Microsoft Auth';
+  }
+
+  @Get('microsoft/callback')
+  @UseGuards(AuthGuard('azure-ad-openidconnect'))
+  async microsoftAuthRedirect(@Req() req, @Res() res) {
+    const result = await this.authService.oauthLogin(req.user, res);
+    return res.json(result);
+  }
+
+  @Post('microsoft/registration')
+  @ApiOperation({
+    summary: 'Microsoft registration endpoint',
+  })
+  @ApiBody({ type: RegistrationOAuthRequest })
+  @ApiResponse({
+    status: 300,
+    description: 'Redirect to front to pick type of user and set password',
+  })
+  async registerMicrosoftUser(@Body() body: RegistrationOAuthType) {
+    const nativeProvider = OAUTH_PROVIDER.MICROSOFT;
+    return this.authService.oauthRegistration(body, nativeProvider);
   }
 }

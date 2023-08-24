@@ -4,11 +4,11 @@ import { User } from '@prisma/client';
 import {
   USER_CREATION_ERROR,
   USER_UNIQUE,
-  UserData,
   ERROR_VALIDATION_PASSWORD,
 } from './constants/constant';
 import * as bcrypt from 'bcrypt';
 import { UserService } from './user.service';
+import { UserData } from './interfaces/interfaces';
 
 jest.mock('bcrypt', () => ({
   compare: jest.fn(),
