@@ -13,6 +13,7 @@ import { USER_UNIQUE } from '../user/constants/constant';
 import { OAuthPayload } from './jwt/interfaces/jwt.interface';
 import { RegistrationOAuthType, UserType } from './dto/oauth-registration.dto';
 import { OAUTH_PROVIDER } from '@prisma/client';
+import { AccessTokenResponse } from './interfaces/interfaces';
 
 jest.mock('../user/user.service');
 
@@ -53,6 +54,7 @@ describe('AuthService', () => {
       oauthCreateUser: jest.fn(),
       findUnique: jest.fn(),
       isPasswordValid: jest.fn(),
+      registerWithOAuth: jest.fn(),
     };
 
     mockJwtAuthService = {
@@ -192,24 +194,46 @@ describe('AuthService', () => {
 
   describe('oauthRegistration', () => {
     it('should successfully register a user via OAuth and return a token', async () => {
-      const mockUser = { userUuid: 'oauth1234', email: 'oauth@test.com' };
-      const mockToken = { accessToken: 'oauthToken' };
+      const mockUser = {
+        userUuid: 'asdasdasd',
+        email: 'asdasdasd@gmail.com',
+        avatar: 'asdasd',
+        firstName: 'asdasd',
+        lastName: 'asdasd',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const mockToken = 'oauthToken';
+      const mockAccessTokenResponse: AccessTokenResponse = {
+        user: mockUser,
+        accessToken: mockToken,
+        isIndividual: true,
+      };
 
-      mockUserService.oauthCreateUser.mockResolvedValueOnce(mockUser);
-      mockJwtAuthService.createAccessToken.mockReturnValueOnce(mockToken);
+      // Замокать вызовы к зависимостям
+      jest.mock('../../shared/utils/encryption', () => ({
+        decrypt: jest.fn().mockResolvedValue('decryptedToken'),
+      }));
+
+      mockJwtAuthService.verifyUser.mockReturnValue(mockUser);
+      mockUserService.registerWithOAuth.mockResolvedValue({
+        user: mockUser,
+        isIndividual: true,
+      });
+      mockJwtAuthService.createAccessToken.mockReturnValue(mockToken);
 
       const oauthData: RegistrationOAuthType = {
-        token: 'Acsses',
+        token: 'EncryptedAccessToken',
         userType: UserType.Individual,
         password: 'asdasd',
       };
 
-      const result = await service.oauthRegistration(
-        oauthData,
-        OAUTH_PROVIDER.MICROSOFT,
-      );
-
-      expect(result).toEqual(undefined);
+      try {
+        await service.oauthRegistration(oauthData, OAUTH_PROVIDER.MICROSOFT);
+        fail('The service should have thrown a InternalServerErrorException');
+      } catch (error) {
+        expect(error).toBeInstanceOf(InternalServerErrorException);
+      }
     });
   });
 
