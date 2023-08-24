@@ -204,7 +204,10 @@ describe('AuthService', () => {
         password: 'asdasd',
       };
 
-      const result = await service.oauthRegistration(oauthData, OAUTH_PROVIDER.MICROSOFT);
+      const result = await service.oauthRegistration(
+        oauthData,
+        OAUTH_PROVIDER.MICROSOFT,
+      );
 
       expect(result).toEqual(undefined);
     });
@@ -262,7 +265,7 @@ describe('AuthService', () => {
       };
 
       try {
-        const result = await service.oauthLogin(oauthData, {});
+        await service.oauthLogin(oauthData, {});
         fail('The service should have thrown a InternalServerErrorException');
       } catch (error) {
         expect(error).toBeInstanceOf(InternalServerErrorException);
