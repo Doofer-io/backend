@@ -13,7 +13,6 @@ import { USER_UNIQUE } from '../user/constants/constant';
 import { OAuthPayload } from './jwt/interfaces/jwt.interface';
 import { RegistrationOAuthType, UserType } from './dto/oauth-registration.dto';
 import { OAUTH_PROVIDER } from '@prisma/client';
-import { AccessTokenResponse } from './interfaces/interfaces';
 
 jest.mock('../user/user.service');
 
