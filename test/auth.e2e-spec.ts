@@ -4,12 +4,17 @@ import { AppModule } from '../src/app.module';
 import { INestApplication } from '@nestjs/common';
 import { PrismaService } from '../src/shared/services/prisma.service';
 import { JwtAuthService } from '../src/modules/auth/jwt/jwt.service';
-import passport from 'passport';
+import { encrypt } from '../src/shared/utils/encryption';
+import { ConfigService } from '@nestjs/config';
+import { OAuthPayload } from '../src/modules/auth/jwt/interfaces/jwt.interface';
+import { AuthService } from '../src/modules/auth/auth.service';
 
 describe('AuthService (e2e)', () => {
   let app: INestApplication;
   let prismaService: PrismaService;
   let jwtAuthService: JwtAuthService;
+  let configService: ConfigService;
+  let authService: AuthService;
 
   const userRegistrationDto = {
     email: 'test@example.com',
@@ -27,6 +32,8 @@ describe('AuthService (e2e)', () => {
     app = moduleFixture.createNestApplication();
     prismaService = moduleFixture.get<PrismaService>(PrismaService);
     jwtAuthService = moduleFixture.get<JwtAuthService>(JwtAuthService);
+    configService = moduleFixture.get<ConfigService>(ConfigService);
+    authService = moduleFixture.get<AuthService>(AuthService);
     await app.init();
   });
 
@@ -98,17 +105,53 @@ describe('AuthService (e2e)', () => {
       .expect('Location', /^https:\/\/accounts.google.com/); // Проверяем, что редирект идет на страницу Google для аутентификации
   });
 
-  it('/auth/google/callback (GET) should handle Google Auth response', () => {
-    // Здесь вы можете добавить подмену (mock) ответа от Google, чтобы протестировать этот маршрут
-    // Это может быть более сложно из-за OAuth2
+  it('/auth/google/callback (GET) should handle Google Auth response', async () => {
+    const mockUser = {
+      userUuid: 'mock-user-id',
+      email: 'test@example.com',
+    };
+
+    const mockOAuthPayload: OAuthPayload = {
+      provider: 'GOOGLE',
+      providerId: 'someProviderId',
+      email: mockUser.email,
+      firstName: 'Mock',
+      lastName: 'User',
+      picture: null,
+    };
+
+    // Mock the oauthLogin method of authService
+    jest.spyOn(authService, 'oauthLogin').mockImplementation(async () => ({
+      user: {
+        userUuid: mockUser.userUuid,
+        email: mockUser.email,
+        avatar: 'asdasd',
+        firstName: 'asdasd',
+        lastName: 'asdasd',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      accessToken: 'mockAccessToken',
+      isIndividual: true,
+    }));
+
+    // Mock the AuthGuard
+    jest.mock('passport', () => ({
+      authenticate: jest.fn(() => (req, res, next) => {
+        req.user = mockOAuthPayload;
+        next();
+      }),
+    }));
+
+    await request(app.getHttpServer()).get('/auth/google/callback').expect(302);
   });
 
   it('/auth/google-registration (POST)', async () => {
     // this test may fail, you need to pass real token
     const userDataFromGoogle = {
       provider: 'GOOGLE',
-      providerId: '100791518407288635126',
-      email: 'artur.demenskiy03@gmail.com',
+      providerId: 'pizdeczifri',
+      email: 'testr3mega@gmail.com',
       firstName: 'Артур',
       lastName: 'Деменський',
       picture:
@@ -118,8 +161,13 @@ describe('AuthService (e2e)', () => {
     const { accessToken } =
       jwtAuthService.createTempAccesstoken(userDataFromGoogle);
 
+    const encryptedToken = await encrypt(
+      accessToken,
+      configService.get<string>('ENCRYPT_KEY'),
+    );
+
     const googleRegistrationDto = {
-      token: accessToken,
+      token: encryptedToken,
       password: 'MySecureComplexPassword123!',
       userType: 'individual',
     };
@@ -158,37 +206,53 @@ describe('AuthService (e2e)', () => {
 
   it('/auth/microsoft/callback (GET) should handle Microsoft Auth response', async () => {
     const mockUser = {
-      id: 'mock-user-id',
+      userUuid: 'mock-user-id',
       email: 'test@example.com',
     };
 
-    const mockStrategy = {
-      authenticate: () => {
-        return (req, res, next) => {
-          req.user = mockUser;
-          return next();
-        };
-      },
+    const mockOAuthPayload: OAuthPayload = {
+      provider: 'MICROSOFT',
+      providerId: 'someProviderId',
+      email: mockUser.email,
+      firstName: 'Mock',
+      lastName: 'User',
+      picture: null,
     };
 
-    // Mock the passport strategy behavior
-    passport.use('azure-ad-openidconnect', mockStrategy);
+    // Mock the oauthLogin method of authService
+    const oauthLoginSpy = jest
+      .spyOn(authService, 'oauthLogin')
+      .mockImplementation(async () => ({
+        user: {
+          userUuid: mockUser.userUuid,
+          email: mockUser.email,
+          avatar: 'asdasd',
+          firstName: 'asdasd',
+          lastName: 'asdasd',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        accessToken: 'mockAccessToken',
+        isIndividual: true,
+      }));
 
-    const response = await request(app.getHttpServer())
+    // Mock the AuthGuard
+    jest.mock('passport', () => ({
+      authenticate: jest.fn(() => (req, res, next) => {
+        req.user = mockOAuthPayload;
+        next();
+      }),
+    }));
+
+    await request(app.getHttpServer())
       .get('/auth/microsoft/callback')
-      .expect(200);
-
-    // Perform additional assertions on the response
-    // For example:
-    expect(response.body).toBeDefined();
-    expect(response.body.id).toBe(mockUser.id);
-    expect(response.body.email).toBe(mockUser.email);
+      .expect(302);
   });
 
   it('/auth/microsoft/registration (POST)', async () => {
     const userDataFromMicrosoft = {
       provider: 'MICROSOFT',
-      providerId: '6546985426465151',
+      providerId: 'pizdeczifri',
       email: 'test2@example.com',
       firstName: 'Mock',
       lastName: 'User',
@@ -199,8 +263,13 @@ describe('AuthService (e2e)', () => {
       userDataFromMicrosoft,
     );
 
+    const encryptedToken = await encrypt(
+      accessToken,
+      configService.get<string>('ENCRYPT_KEY'),
+    );
+
     const microsoftRegistrationDto = {
-      token: accessToken,
+      token: encryptedToken,
       password: 'MySecureComplexPassword123!',
       userType: 'individual',
     };
