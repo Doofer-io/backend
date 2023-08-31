@@ -7,7 +7,7 @@ export enum UserType {
   Company = 'company',
 }
 
-export class IndividualRegistrationGoogleDto {
+export class IndividualRegistrationOAuthDto {
   @ApiProperty({
     example: 'ererer.erxcv.etyv',
     type: String,
@@ -45,7 +45,7 @@ export class IndividualRegistrationGoogleDto {
   password: string;
 }
 
-export class CompanyRegistrationGoogleDto extends IndividualRegistrationGoogleDto {
+export class CompanyRegistrationOAuthDto extends IndividualRegistrationOAuthDto {
   @ApiProperty({
     example: 'JohnDoofer.io',
     type: String,
@@ -57,23 +57,23 @@ export class CompanyRegistrationGoogleDto extends IndividualRegistrationGoogleDt
   readonly companyName: string;
 }
 
-export type RegistrationGoogleType =
-  | IndividualRegistrationGoogleDto
-  | CompanyRegistrationGoogleDto;
+export type RegistrationOAuthType =
+  | IndividualRegistrationOAuthDto
+  | CompanyRegistrationOAuthDto;
 
 // only need for using swagger
-export class RegistrationGoogleRequest {
+export class RegistrationOAuthRequest {
   @ApiProperty({
-    type: IndividualRegistrationGoogleDto,
+    type: IndividualRegistrationOAuthDto,
     required: false,
     description: 'This is data for registration individual user',
   })
-  individual?: IndividualRegistrationGoogleDto;
+  individual?: IndividualRegistrationOAuthDto;
 
   @ApiProperty({
-    type: CompanyRegistrationGoogleDto,
+    type: CompanyRegistrationOAuthDto,
     required: false,
     description: 'This is data for company individual user',
   })
-  company?: CompanyRegistrationGoogleDto;
+  company?: CompanyRegistrationOAuthDto;
 }
